@@ -1,0 +1,348 @@
+<!DOCTYPE html>
+
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>New Relief Report</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    "colors": {
+                        "on-primary-container": "#fbfdff",
+                        "error": "#ba1a1a",
+                        "secondary": "#575c83",
+                        "on-tertiary-fixed": "#00201c",
+                        "primary-fixed": "#bfe8ff",
+                        "status-critical": "#D81B60",
+                        "on-secondary": "#ffffff",
+                        "on-surface": "#1a1c19",
+                        "on-primary-fixed-variant": "#004d65",
+                        "background": "#fafaf4",
+                        "inverse-surface": "#2f312e",
+                        "tertiary-fixed": "#99f3e4",
+                        "on-primary": "#ffffff",
+                        "on-tertiary-fixed-variant": "#005048",
+                        "error-container": "#ffdad6",
+                        "on-tertiary-container": "#f4fffb",
+                        "surface-dark": "#1A1C1E",
+                        "surface-container-lowest": "#ffffff",
+                        "surface-container-high": "#e8e8e3",
+                        "outline-variant": "#bec8cf",
+                        "on-secondary-fixed": "#13183c",
+                        "status-warning": "#FFB300",
+                        "surface-tint": "#006686",
+                        "on-surface-variant": "#44474E",
+                        "on-error": "#ffffff",
+                        "surface-variant": "#e3e3de",
+                        "primary-fixed-dim": "#73d2fd",
+                        "primary": "#006482",
+                        "tertiary-container": "#1f8276",
+                        "outline": "#6f787f",
+                        "surface-container-highest": "#e3e3de",
+                        "tertiary": "#00685d",
+                        "tertiary-fixed-dim": "#7dd6c8",
+                        "inverse-primary": "#73d2fd",
+                        "on-background": "#1a1c19",
+                        "primary-container": "#007ea4",
+                        "on-error-container": "#93000a",
+                        "surface-container": "#eeeee9",
+                        "surface": "#fafaf4",
+                        "on-secondary-fixed-variant": "#3f446a",
+                        "surface-dim": "#dadad5",
+                        "secondary-fixed": "#dfe0ff",
+                        "secondary-fixed-dim": "#bfc4f0",
+                        "on-primary-fixed": "#001f2a",
+                        "inverse-on-surface": "#f1f1ec",
+                        "on-secondary-container": "#545980",
+                        "on-tertiary": "#ffffff",
+                        "secondary-container": "#cdd1ff",
+                        "surface-bright": "#fafaf4",
+                        "surface-container-low": "#f4f4ef"
+                    },
+                    "borderRadius": {
+                        "DEFAULT": "0.25rem",
+                        "lg": "0.5rem",
+                        "xl": "0.75rem",
+                        "full": "9999px"
+                    },
+                    "spacing": {
+                        "margin-mobile": "16px",
+                        "gutter": "16px",
+                        "margin-desktop": "32px",
+                        "margin-tablet": "24px",
+                        "baseline": "8px",
+                        "touch-target-min": "48px"
+                    },
+                    "fontFamily": {
+                        "label-lg": ["Inter"],
+                        "headline-lg": ["Inter"],
+                        "headline-md": ["Inter"],
+                        "headline-lg-mobile": ["Inter"],
+                        "label-sm": ["Inter"],
+                        "title-lg": ["Inter"],
+                        "body-lg": ["Inter"],
+                        "body-md": ["Inter"]
+                    },
+                    "fontSize": {
+                        "label-lg": ["14px", { "lineHeight": "20px", "letterSpacing": "0.1px", "fontWeight": "600" }],
+                        "headline-lg": ["32px", { "lineHeight": "40px", "letterSpacing": "-0.02em", "fontWeight": "700" }],
+                        "headline-md": ["24px", { "lineHeight": "32px", "fontWeight": "600" }],
+                        "headline-lg-mobile": ["28px", { "lineHeight": "36px", "fontWeight": "700" }],
+                        "label-sm": ["12px", { "lineHeight": "16px", "letterSpacing": "0.5px", "fontWeight": "500" }],
+                        "title-lg": ["20px", { "lineHeight": "26px", "fontWeight": "600" }],
+                        "body-lg": ["18px", { "lineHeight": "28px", "fontWeight": "400" }],
+                        "body-md": ["16px", { "lineHeight": "24px", "fontWeight": "400" }]
+                    }
+                }
+            }
+        }
+    </script>
+<style>
+        .mode-transition {
+            transition: opacity 0.3s ease, transform 0.3s ease;
+        }
+        .hidden-mode {
+            opacity: 0;
+            transform: translateY(10px);
+            pointer-events: none;
+            position: absolute;
+            visibility: hidden;
+        }
+        .active-mode {
+            opacity: 1;
+            transform: translateY(0);
+            position: relative;
+            visibility: visible;
+        }
+    </style>
+</head>
+<body class="bg-background text-on-background min-h-screen flex flex-col md:flex-row antialiased">
+<!-- Sidebar Navigation (Desktop) -->
+<nav class="hidden md:flex flex-col h-screen w-80 bg-surface border-r border-outline-variant/30 sticky top-0">
+<div class="px-margin-desktop py-6">
+<h1 class="font-headline-md text-headline-md text-primary">ReliefOps</h1>
+</div>
+<div class="flex-1 px-4 space-y-2 mt-4">
+<a class="flex items-center space-x-3 px-4 py-3 rounded-full text-on-surface-variant font-label-lg hover:bg-surface-container-highest transition-all group" href="#">
+<span class="material-symbols-outlined text-outline group-hover:text-primary transition-colors">home</span>
+<span>Dashboard</span>
+</a>
+<a class="flex items-center space-x-3 px-4 py-3 rounded-full bg-primary-container text-on-primary-container font-label-lg font-bold" href="#">
+<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1;">assignment</span>
+<span>Reports</span>
+</a>
+<a class="flex items-center space-x-3 px-4 py-3 rounded-full text-on-surface-variant font-label-lg hover:bg-surface-container-highest transition-all group" href="#">
+<span class="material-symbols-outlined text-outline group-hover:text-primary transition-colors">map</span>
+<span>Map</span>
+</a>
+</div>
+<div class="px-4 py-6 mt-auto">
+<div class="flex items-center space-x-3 px-4 py-3 bg-surface-container-low rounded-xl border border-outline-variant/30">
+<div class="w-10 h-10 rounded-full bg-secondary-container flex items-center justify-center text-on-secondary-container font-title-lg">C</div>
+<div>
+<div class="font-label-lg text-label-lg text-on-surface">Coordinator Profile</div>
+<div class="font-label-sm text-label-sm text-on-surface-variant">Active Duty</div>
+</div>
+</div>
+</div>
+</nav>
+<!-- Main Content Area -->
+<main class="flex-1 flex flex-col relative w-full md:max-w-4xl md:mx-auto">
+<!-- TopAppBar (Mobile) -->
+<header class="md:hidden flex justify-between items-center w-full px-margin-mobile h-touch-target-min bg-surface border-b border-secondary/12 sticky top-0 z-40">
+<div class="flex items-center gap-3">
+<button class="w-10 h-10 rounded-full flex items-center justify-center bg-surface-container-low active:scale-95 duration-100">
+<span class="material-symbols-outlined text-on-surface-variant">arrow_back</span>
+</button>
+<h1 class="font-headline-lg-mobile text-headline-lg-mobile text-primary tracking-tight">New Report</h1>
+</div>
+</header>
+<!-- Desktop Header (Suppressed Mobile) -->
+<header class="hidden md:flex items-center justify-between px-margin-desktop py-8">
+<div>
+<h1 class="font-headline-lg text-headline-lg text-primary tracking-tight">Submit Relief Report</h1>
+<p class="font-body-md text-body-md text-on-surface-variant mt-1">Record critical field data accurately for immediate dispatch.</p>
+</div>
+</header>
+<div class="flex-1 px-margin-mobile md:px-margin-desktop py-6 pb-32 md:pb-12 space-y-8">
+<!-- Dual Mode Toggle -->
+<div class="bg-surface-container-low p-1 rounded-xl inline-flex w-full md:w-auto shadow-sm border border-outline-variant/20 relative">
+<!-- Highlight Pill (Absolute positioning managed by JS for smooth sliding) -->
+<div class="absolute top-1 bottom-1 left-1 bg-surface rounded-lg shadow-sm border border-outline-variant/10 transition-all duration-300 ease-in-out z-0 w-[calc(50%-4px)] md:w-[150px]" id="toggle-pill"></div>
+<button class="relative z-10 flex-1 md:w-[150px] py-2.5 font-label-lg text-label-lg text-primary text-center transition-colors" id="btn-free" onclick="switchMode('free')">
+                    Free Text
+                </button>
+<button class="relative z-10 flex-1 md:w-[150px] py-2.5 font-label-lg text-label-lg text-on-surface-variant text-center transition-colors" id="btn-structured" onclick="switchMode('structured')">
+                    Structured Form
+                </button>
+</div>
+<div class="relative min-h-[400px]">
+<!-- Free Text Mode -->
+<div class="active-mode w-full space-y-6" id="mode-free">
+<div class="bg-surface p-6 rounded-xl shadow-[0_4px_12px_rgba(0,0,0,0.03)] border border-outline-variant/20 flex flex-col h-full">
+<label class="font-title-lg text-title-lg text-on-surface mb-2 flex items-center justify-between">
+<span>Situation Narrative</span>
+<button class="w-10 h-10 rounded-full bg-primary-container text-on-primary-container flex items-center justify-center hover:bg-primary hover:text-on-primary transition-colors group">
+<span class="material-symbols-outlined text-[20px] group-hover:scale-110 transition-transform">mic</span>
+</button>
+</label>
+<p class="font-body-md text-body-md text-on-surface-variant mb-4">Type or speak the details of the situation. AI will extract key metrics.</p>
+<textarea class="w-full flex-1 min-h-[200px] p-4 bg-surface-container-lowest border border-outline-variant/50 rounded-lg font-body-lg text-body-lg text-on-surface focus:border-primary focus:ring-1 focus:ring-primary outline-none resize-none placeholder-outline" placeholder="e.g., '100 people stranded in Jampur, needs food and water immediately...'"></textarea>
+<!-- AI Extraction Loading State (Hidden by default) -->
+<div class="hidden mt-4 p-4 bg-secondary-container/20 rounded-lg flex items-center space-x-4 border border-secondary-container" id="ai-loading">
+<span class="material-symbols-outlined text-primary animate-spin">sync</span>
+<div>
+<div class="font-label-lg text-label-lg text-on-surface">Extracting details...</div>
+<div class="font-label-sm text-label-sm text-on-surface-variant">Structuring your narrative into actionable data.</div>
+</div>
+</div>
+</div>
+</div>
+<!-- Structured Form Mode -->
+<div class="hidden-mode w-full space-y-6" id="mode-structured">
+<div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+<!-- Severity -->
+<div class="bg-surface p-6 rounded-xl shadow-[0_4px_12px_rgba(0,0,0,0.03)] border border-outline-variant/20">
+<label class="font-title-lg text-title-lg text-on-surface block mb-4">Severity Level</label>
+<div class="grid grid-cols-2 gap-3">
+<button class="py-3 px-4 rounded-lg border border-outline-variant/30 font-label-lg text-label-lg text-on-surface text-center hover:bg-surface-container-low focus:bg-surface-variant focus:border-outline outline-none transition-colors">Low</button>
+<button class="py-3 px-4 rounded-lg border border-outline-variant/30 font-label-lg text-label-lg text-on-surface text-center hover:bg-surface-container-low focus:bg-surface-variant focus:border-outline outline-none transition-colors">Medium</button>
+<button class="py-3 px-4 rounded-lg border border-outline-variant/30 font-label-lg text-label-lg text-on-surface text-center hover:bg-surface-container-low focus:bg-status-warning/10 focus:border-status-warning focus:text-status-warning outline-none transition-colors">High</button>
+<button class="py-3 px-4 rounded-lg border-2 border-status-critical bg-status-critical/10 font-label-lg text-label-lg text-status-critical text-center outline-none transition-colors shadow-sm">Critical</button>
+</div>
+</div>
+<!-- Population -->
+<div class="bg-surface p-6 rounded-xl shadow-[0_4px_12px_rgba(0,0,0,0.03)] border border-outline-variant/20">
+<label class="font-title-lg text-title-lg text-on-surface block mb-2">Estimated Population</label>
+<p class="font-body-md text-body-md text-on-surface-variant mb-4">Number of individuals affected.</p>
+<div class="relative">
+<span class="material-symbols-outlined absolute left-4 top-1/2 -translate-y-1/2 text-outline">group</span>
+<input class="w-full pl-12 pr-4 py-4 bg-surface-container-lowest border border-outline-variant/50 rounded-lg font-body-lg text-body-lg text-on-surface focus:border-primary focus:ring-1 focus:ring-primary outline-none" placeholder="e.g. 150" type="number"/>
+</div>
+</div>
+<!-- Needs Chips -->
+<div class="bg-surface p-6 rounded-xl shadow-[0_4px_12px_rgba(0,0,0,0.03)] border border-outline-variant/20 md:col-span-2">
+<label class="font-title-lg text-title-lg text-on-surface block mb-2">Immediate Needs</label>
+<p class="font-body-md text-body-md text-on-surface-variant mb-4">Select all resources required at the location.</p>
+<div class="flex flex-wrap gap-3">
+<button class="flex items-center space-x-2 px-4 py-2 rounded-full border-2 border-primary bg-primary-container text-on-primary-container font-label-lg transition-colors">
+<span class="material-symbols-outlined text-[18px]">water_drop</span>
+<span>Water</span>
+</button>
+<button class="flex items-center space-x-2 px-4 py-2 rounded-full border border-outline-variant text-on-surface-variant font-label-lg hover:bg-surface-container-low transition-colors">
+<span class="material-symbols-outlined text-[18px]">nutrition</span>
+<span>Food</span>
+</button>
+<button class="flex items-center space-x-2 px-4 py-2 rounded-full border border-outline-variant text-on-surface-variant font-label-lg hover:bg-surface-container-low transition-colors">
+<span class="material-symbols-outlined text-[18px]">medical_services</span>
+<span>Medical</span>
+</button>
+<button class="flex items-center space-x-2 px-4 py-2 rounded-full border border-outline-variant text-on-surface-variant font-label-lg hover:bg-surface-container-low transition-colors">
+<span class="material-symbols-outlined text-[18px]">flip_camera_ios</span>
+<span>Shelter</span>
+</button>
+<button class="flex items-center space-x-2 px-4 py-2 rounded-full border border-outline-variant text-on-surface-variant font-label-lg hover:bg-surface-container-low transition-colors">
+<span class="material-symbols-outlined text-[18px]">power</span>
+<span>Power</span>
+</button>
+</div>
+</div>
+</div>
+</div>
+</div>
+<!-- Common Section: Location -->
+<div class="bg-surface p-6 rounded-xl shadow-[0_4px_12px_rgba(0,0,0,0.03)] border border-outline-variant/20">
+<div class="flex justify-between items-start mb-4">
+<div>
+<h3 class="font-title-lg text-title-lg text-on-surface">Confirm Location</h3>
+<p class="font-body-md text-body-md text-on-surface-variant">Verify the incident coordinates.</p>
+</div>
+<button class="flex items-center space-x-2 px-4 py-2 rounded-full border border-secondary text-secondary font-label-lg hover:bg-surface-container-low transition-colors">
+<span class="material-symbols-outlined text-[18px]">my_location</span>
+<span>Use Current</span>
+</button>
+</div>
+<div class="w-full h-48 rounded-lg overflow-hidden border border-outline-variant/30 relative">
+<!-- Map Placeholder -->
+<img class="w-full h-full object-cover" data-alt="A detailed aerial map view of Jampur focusing on a suburban area, showing street grids in a clean, modern light-mode color palette with soft whites, grays, and a distinct primary blue pin marker dropping onto a key intersection." data-location="Jampur" src="https://lh3.googleusercontent.com/aida-public/AB6AXuA8G1u6Qdi6nw2Be1f5KrHfkDIQiaOXuIVqgV-eHRFkoHKXRBMW_ZRGjcPVR5889L5xzNJEmKYojSZttv11EeHqj-JSNPr5-78tELm5dXe8HjlycY-hO-8XbD05Sy49YpEo7yhNHoYIFFiWyOkrxoq0DtC58bl58qjV0dVpOy1ZZe3Tc139tNd7YXs7yTXEuQcQnNnpae4TYzhmGls0ucrTNixtVL9SNQu5HkAfLMuUvJMHi7bxFkE"/>
+<div class="absolute inset-0 bg-gradient-to-t from-surface/40 to-transparent pointer-events-none"></div>
+<div class="absolute bottom-3 left-3 bg-surface/90 backdrop-blur-sm px-3 py-1.5 rounded text-on-surface font-label-sm shadow-sm">
+                        29.6429° N, 70.5952° E
+                    </div>
+</div>
+</div>
+<!-- Submit Button Desktop (Mobile handles via FAB or pinned bottom) -->
+<div class="hidden md:flex justify-end pt-4">
+<button class="bg-primary hover:bg-primary/90 text-on-primary px-8 py-3.5 rounded-full font-title-lg text-title-lg shadow-md transition-all active:scale-95 flex items-center space-x-2">
+<span class="material-symbols-outlined">send</span>
+<span>Submit Report</span>
+</button>
+</div>
+</div>
+</main>
+<!-- Floating Action Button (Mobile Only) -->
+<button class="md:hidden fixed right-margin-mobile bottom-[calc(80px+16px)] w-14 h-14 bg-primary text-on-primary rounded-xl shadow-[0_8px_16px_rgba(0,0,0,0.2)] flex items-center justify-center z-50 active:scale-90 transition-transform">
+<span class="material-symbols-outlined text-[28px]">send</span>
+</button>
+<!-- BottomNavBar (Mobile Only) -->
+<nav class="md:hidden fixed bottom-0 w-full z-50 flex justify-around items-center px-4 py-3 pb-6 bg-surface-container-low shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.1)] rounded-t-xl">
+<a class="flex flex-col items-center justify-center text-on-surface-variant px-5 py-1" href="#">
+<span class="material-symbols-outlined">home</span>
+<span class="font-label-sm text-label-sm mt-1">Home</span>
+</a>
+<a class="flex flex-col items-center justify-center bg-secondary-container text-on-secondary-container rounded-full px-5 py-1" href="#">
+<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1;">assignment</span>
+<span class="font-label-sm text-label-sm mt-1 font-bold">Reports</span>
+</a>
+<a class="flex flex-col items-center justify-center text-on-surface-variant px-5 py-1" href="#">
+<span class="material-symbols-outlined">map</span>
+<span class="font-label-sm text-label-sm mt-1">Map</span>
+</a>
+<a class="flex flex-col items-center justify-center text-on-surface-variant px-5 py-1" href="#">
+<span class="material-symbols-outlined">person</span>
+<span class="font-label-sm text-label-sm mt-1">Profile</span>
+</a>
+</nav>
+<script>
+        function switchMode(mode) {
+            const freeBtn = document.getElementById('btn-free');
+            const structuredBtn = document.getElementById('btn-structured');
+            const freeMode = document.getElementById('mode-free');
+            const structuredMode = document.getElementById('mode-structured');
+            const pill = document.getElementById('toggle-pill');
+
+            if (mode === 'free') {
+                // UI Toggle state
+                pill.style.transform = 'translateX(0)';
+                
+                freeBtn.classList.replace('text-on-surface-variant', 'text-primary');
+                structuredBtn.classList.replace('text-primary', 'text-on-surface-variant');
+
+                // Content switch
+                structuredMode.classList.replace('active-mode', 'hidden-mode');
+                setTimeout(() => {
+                    freeMode.classList.replace('hidden-mode', 'active-mode');
+                }, 50); // Small delay for cleaner visual swap
+                
+            } else {
+                // UI Toggle state
+                pill.style.transform = 'translateX(100%)';
+                
+                structuredBtn.classList.replace('text-on-surface-variant', 'text-primary');
+                freeBtn.classList.replace('text-primary', 'text-on-surface-variant');
+
+                // Content switch
+                freeMode.classList.replace('active-mode', 'hidden-mode');
+                setTimeout(() => {
+                    structuredMode.classList.replace('hidden-mode', 'active-mode');
+                }, 50);
+            }
+        }
+    </script>
+</body></html>

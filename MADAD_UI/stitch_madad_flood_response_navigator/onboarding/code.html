@@ -1,0 +1,235 @@
+<!DOCTYPE html>
+
+<html lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>MADAD - Onboarding</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+      tailwind.config = {
+        darkMode: "class",
+        theme: {
+          extend: {
+            "colors": {
+                    "on-primary-container": "#fbfdff",
+                    "error": "#ba1a1a",
+                    "secondary": "#575c83",
+                    "on-tertiary-fixed": "#00201c",
+                    "primary-fixed": "#bfe8ff",
+                    "status-critical": "#D81B60",
+                    "on-secondary": "#ffffff",
+                    "on-surface": "#1a1c19",
+                    "on-primary-fixed-variant": "#004d65",
+                    "background": "#fafaf4",
+                    "inverse-surface": "#2f312e",
+                    "tertiary-fixed": "#99f3e4",
+                    "on-primary": "#ffffff",
+                    "on-tertiary-fixed-variant": "#005048",
+                    "error-container": "#ffdad6",
+                    "on-tertiary-container": "#f4fffb",
+                    "surface-dark": "#1A1C1E",
+                    "surface-container-lowest": "#ffffff",
+                    "surface-container-high": "#e8e8e3",
+                    "outline-variant": "#bec8cf",
+                    "on-secondary-fixed": "#13183c",
+                    "status-warning": "#FFB300",
+                    "surface-tint": "#006686",
+                    "on-surface-variant": "#44474E",
+                    "on-error": "#ffffff",
+                    "surface-variant": "#e3e3de",
+                    "primary-fixed-dim": "#73d2fd",
+                    "primary": "#006482",
+                    "tertiary-container": "#1f8276",
+                    "outline": "#6f787f",
+                    "surface-container-highest": "#e3e3de",
+                    "tertiary": "#00685d",
+                    "tertiary-fixed-dim": "#7dd6c8",
+                    "inverse-primary": "#73d2fd",
+                    "on-background": "#1a1c19",
+                    "primary-container": "#007ea4",
+                    "on-error-container": "#93000a",
+                    "surface-container": "#eeeee9",
+                    "surface": "#fafaf4",
+                    "on-secondary-fixed-variant": "#3f446a",
+                    "surface-dim": "#dadad5",
+                    "secondary-fixed": "#dfe0ff",
+                    "secondary-fixed-dim": "#bfc4f0",
+                    "on-primary-fixed": "#001f2a",
+                    "inverse-on-surface": "#f1f1ec",
+                    "on-secondary-container": "#545980",
+                    "on-tertiary": "#ffffff",
+                    "secondary-container": "#cdd1ff",
+                    "surface-bright": "#fafaf4",
+                    "surface-container-low": "#f4f4ef"
+            },
+            "borderRadius": {
+                    "DEFAULT": "0.25rem",
+                    "lg": "0.5rem",
+                    "xl": "0.75rem",
+                    "full": "9999px"
+            },
+            "spacing": {
+                    "margin-mobile": "16px",
+                    "gutter": "16px",
+                    "margin-desktop": "32px",
+                    "margin-tablet": "24px",
+                    "baseline": "8px",
+                    "touch-target-min": "48px"
+            },
+            "fontFamily": {
+                    "label-lg": [
+                            "Inter"
+                    ],
+                    "headline-lg": [
+                            "Inter"
+                    ],
+                    "headline-md": [
+                            "Inter"
+                    ],
+                    "headline-lg-mobile": [
+                            "Inter"
+                    ],
+                    "label-sm": [
+                            "Inter"
+                    ],
+                    "title-lg": [
+                            "Inter"
+                    ],
+                    "body-lg": [
+                            "Inter"
+                    ],
+                    "body-md": [
+                            "Inter"
+                    ]
+            },
+            "fontSize": {
+                    "label-lg": [
+                            "14px",
+                            {
+                                    "lineHeight": "20px",
+                                    "letterSpacing": "0.1px",
+                                    "fontWeight": "600"
+                            }
+                    ],
+                    "headline-lg": [
+                            "32px",
+                            {
+                                    "lineHeight": "40px",
+                                    "letterSpacing": "-0.02em",
+                                    "fontWeight": "700"
+                            }
+                    ],
+                    "headline-md": [
+                            "24px",
+                            {
+                                    "lineHeight": "32px",
+                                    "fontWeight": "600"
+                            }
+                    ],
+                    "headline-lg-mobile": [
+                            "28px",
+                            {
+                                    "lineHeight": "36px",
+                                    "fontWeight": "700"
+                            }
+                    ],
+                    "label-sm": [
+                            "12px",
+                            {
+                                    "lineHeight": "16px",
+                                    "letterSpacing": "0.5px",
+                                    "fontWeight": "500"
+                            }
+                    ],
+                    "title-lg": [
+                            "20px",
+                            {
+                                    "lineHeight": "26px",
+                                    "fontWeight": "600"
+                            }
+                    ],
+                    "body-lg": [
+                            "18px",
+                            {
+                                    "lineHeight": "28px",
+                                    "fontWeight": "400"
+                            }
+                    ],
+                    "body-md": [
+                            "16px",
+                            {
+                                    "lineHeight": "24px",
+                                    "fontWeight": "400"
+                            }
+                    ]
+            }
+    },
+        },
+      }
+    </script>
+<style>
+        /* Ambient subtle gradient animation */
+        @keyframes subtle-gradient {
+            0% { background-position: 0% 50%; }
+            50% { background-position: 100% 50%; }
+            100% { background-position: 0% 50%; }
+        }
+        .bg-ambient {
+            background: linear-gradient(135deg, #fafaf4, #f4f4ef, #e3e3de);
+            background-size: 200% 200%;
+            animation: subtle-gradient 15s ease infinite;
+        }
+    </style>
+</head>
+<body class="bg-background text-on-surface h-screen w-full flex flex-col font-sans overflow-hidden bg-ambient">
+<!-- Suppression of Navigation: Linear/Transactional intent (Onboarding) -->
+<main class="flex-grow flex flex-col items-center justify-center px-margin-mobile relative z-10 w-full max-w-[1280px] mx-auto h-full">
+<!-- Graphic / Illustration Area -->
+<div class="w-full flex-grow flex items-center justify-center relative mb-8 min-h-[40vh]">
+<!-- A subtle, high-trust placeholder image representing logistics/map coordination -->
+<div class="relative w-full max-w-md aspect-square rounded-full bg-surface-container-high shadow-lg overflow-hidden flex items-center justify-center">
+<img class="object-cover w-full h-full opacity-90 mix-blend-multiply" data-alt="A clean, modern vector illustration in a light-mode aesthetic representing flood relief logistics. The illustration should feature a top-down view of a stylized map with clear roads, small depot icons, and flowing water vectors. The color palette must primarily use soft off-whites, deep authority navy blues, and high-contrast action-oriented bright blue accents. The style should be professional, clean, and highly legible, conveying a sense of organized emergency response and precision coordination without appearing chaotic." src="https://lh3.googleusercontent.com/aida-public/AB6AXuDdFMSzgp54hy_cOuJy-cGjaOI07phS924JNdbT-5NgbLoRD2V2DRILHI_9XRcZKJoYfQMg6uoHoCKplujSaG0tiiiTH6ucIeRrKf3estnXqq_jb6becmlrQarciFleaKOMliA71W_HMZQD1l5_z6UhL5nslWPYwkfxM2GgoddDiUFvR3HH-bhtrK8ZuBxnzSJaFxtJgW9X6bK2bDckilo806QUW0zbYcRXdGGGcubN1zYKtCJwtsg"/>
+<!-- Overlay abstract icons for extra 'app' feel -->
+<div class="absolute inset-0 flex items-center justify-center pointer-events-none">
+<div class="relative w-full h-full">
+<!-- Center Map Pin -->
+<div class="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 bg-primary rounded-full p-4 shadow-xl z-20">
+<span class="material-symbols-outlined text-on-primary text-4xl" data-icon="my_location">my_location</span>
+</div>
+<!-- Orbiting elements -->
+<div class="absolute top-1/4 left-1/4 bg-surface rounded-full p-3 shadow-md z-10">
+<span class="material-symbols-outlined text-secondary text-2xl" data-icon="local_shipping">local_shipping</span>
+</div>
+<div class="absolute bottom-1/4 right-1/4 bg-surface rounded-full p-3 shadow-md z-10">
+<span class="material-symbols-outlined text-status-warning text-2xl" data-icon="warning_amber">warning_amber</span>
+</div>
+</div>
+</div>
+</div>
+</div>
+<!-- Typography & Action Area -->
+<div class="w-full max-w-md flex flex-col items-center text-center pb-margin-mobile">
+<div class="mb-6 flex items-center justify-center gap-2 text-primary font-bold tracking-tight">
+<span class="material-symbols-outlined text-3xl" data-icon="emergency_share" data-weight="fill" style="font-variation-settings: 'FILL' 1;">emergency_share</span>
+<span class="font-headline-lg-mobile text-headline-lg-mobile md:font-headline-lg md:text-headline-lg">MADAD</span>
+</div>
+<h1 class="font-headline-lg-mobile text-headline-lg-mobile md:font-headline-lg md:text-headline-lg text-on-surface mb-4">
+                Precision Relief,<br/>Real-Time Response.
+            </h1>
+<p class="font-body-lg text-body-lg text-on-surface-variant mb-12 max-w-sm">
+                Coordinating support centers, depots, and field teams for efficient flood response.
+            </p>
+<button class="w-full min-h-touch-target-min bg-primary text-on-primary font-label-lg text-label-lg rounded-full shadow-md hover:bg-primary-container hover:text-on-primary-container active:scale-95 transition-all duration-200 flex items-center justify-center gap-2">
+<span>Get Started</span>
+<span class="material-symbols-outlined text-xl" data-icon="arrow_forward">arrow_forward</span>
+</button>
+</div>
+</main>
+<!-- Subtle branding anchor at bottom -->
+<div class="absolute bottom-4 left-0 w-full text-center z-0 pointer-events-none">
+<p class="font-label-sm text-label-sm text-outline">v1.0.0-beta</p>
+</div>
+</body></html>

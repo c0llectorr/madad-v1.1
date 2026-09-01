@@ -1,0 +1,297 @@
+<!DOCTYPE html>
+
+<html class="h-full" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Manage Coordinators - MADAD</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    "colors": {
+                        "tertiary": "#00685d",
+                        "tertiary-fixed-dim": "#7dd6c8",
+                        "primary": "#006482",
+                        "surface-container-low": "#f4f4ef",
+                        "on-tertiary-fixed-variant": "#005048",
+                        "on-surface-variant": "#44474E",
+                        "on-primary": "#ffffff",
+                        "surface-container-highest": "#e3e3de",
+                        "error-container": "#ffdad6",
+                        "surface-container-lowest": "#ffffff",
+                        "primary-fixed-dim": "#73d2fd",
+                        "status-critical": "#D81B60",
+                        "on-tertiary-container": "#f4fffb",
+                        "secondary": "#575c83",
+                        "on-primary-container": "#fbfdff",
+                        "background": "#fafaf4",
+                        "on-error-container": "#93000a",
+                        "secondary-fixed-dim": "#bfc4f0",
+                        "tertiary-fixed": "#99f3e4",
+                        "tertiary-container": "#1f8276",
+                        "on-primary-fixed-variant": "#004d65",
+                        "on-secondary-container": "#545980",
+                        "surface-dim": "#dadad5",
+                        "inverse-primary": "#73d2fd",
+                        "on-surface": "#1a1c19",
+                        "on-background": "#1a1c19",
+                        "on-tertiary-fixed": "#00201c",
+                        "surface-tint": "#006686",
+                        "on-error": "#ffffff",
+                        "inverse-on-surface": "#f1f1ec",
+                        "surface-container-high": "#e8e8e3",
+                        "inverse-surface": "#2f312e",
+                        "on-secondary-fixed-variant": "#3f446a",
+                        "outline-variant": "#bec8cf",
+                        "secondary-fixed": "#dfe0ff",
+                        "surface-container": "#eeeee9",
+                        "secondary-container": "#cdd1ff",
+                        "outline": "#6f787f",
+                        "on-primary-fixed": "#001f2a",
+                        "status-warning": "#FFB300",
+                        "surface-bright": "#fafaf4",
+                        "surface": "#fafaf4",
+                        "primary-container": "#007ea4",
+                        "on-secondary-fixed": "#13183c",
+                        "primary-fixed": "#bfe8ff",
+                        "on-secondary": "#ffffff",
+                        "on-tertiary": "#ffffff",
+                        "surface-dark": "#1A1C1E",
+                        "error": "#ba1a1a",
+                        "surface-variant": "#e3e3de"
+                    },
+                    "borderRadius": {
+                        "DEFAULT": "0.25rem",
+                        "lg": "0.5rem",
+                        "xl": "0.75rem",
+                        "full": "9999px"
+                    },
+                    "spacing": {
+                        "margin-tablet": "24px",
+                        "baseline": "8px",
+                        "margin-mobile": "16px",
+                        "margin-desktop": "32px",
+                        "gutter": "16px",
+                        "touch-target-min": "48px"
+                    },
+                    "fontFamily": {
+                        "headline-lg": ["Inter"],
+                        "title-lg": ["Inter"],
+                        "headline-md": ["Inter"],
+                        "body-lg": ["Inter"],
+                        "label-lg": ["Inter"],
+                        "label-sm": ["Inter"],
+                        "headline-lg-mobile": ["Inter"],
+                        "body-md": ["Inter"]
+                    },
+                    "fontSize": {
+                        "headline-lg": ["32px", { "lineHeight": "40px", "letterSpacing": "-0.02em", "fontWeight": "700" }],
+                        "title-lg": ["20px", { "lineHeight": "26px", "fontWeight": "600" }],
+                        "headline-md": ["24px", { "lineHeight": "32px", "fontWeight": "600" }],
+                        "body-lg": ["18px", { "lineHeight": "28px", "fontWeight": "400" }],
+                        "label-lg": ["14px", { "lineHeight": "20px", "letterSpacing": "0.1px", "fontWeight": "600" }],
+                        "label-sm": ["12px", { "lineHeight": "16px", "letterSpacing": "0.5px", "fontWeight": "500" }],
+                        "headline-lg-mobile": ["28px", { "lineHeight": "36px", "fontWeight": "700" }],
+                        "body-md": ["16px", { "lineHeight": "24px", "fontWeight": "400" }]
+                    }
+                }
+            }
+        }
+    </script>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        .material-symbols-outlined.fill {
+            font-variation-settings: 'FILL' 1;
+        }
+    </style>
+</head>
+<body class="bg-background text-on-background font-body-md h-full flex flex-col">
+<!-- TopAppBar -->
+<header class="fixed top-0 w-full z-50 bg-surface dark:bg-surface-dark border-b border-outline-variant/12 shadow-sm flex items-center justify-between px-margin-mobile h-16 transition-colors">
+<div class="flex items-center gap-4">
+<button class="w-[48px] h-[48px] flex items-center justify-center rounded-full hover:bg-surface-container-high dark:hover:bg-surface-container-highest transition-colors active:scale-95 transition-transform text-on-surface-variant dark:text-on-surface-variant">
+<span class="material-symbols-outlined">menu</span>
+</button>
+<h1 class="font-headline-md text-headline-md font-bold text-primary dark:text-primary-fixed-dim tracking-tight">MADAD</h1>
+</div>
+<button class="w-[48px] h-[48px] flex items-center justify-center rounded-full hover:bg-surface-container-high dark:hover:bg-surface-container-highest transition-colors active:scale-95 transition-transform text-on-surface-variant dark:text-on-surface-variant">
+<span class="material-symbols-outlined">notifications</span>
+</button>
+</header>
+<!-- Main Content Canvas -->
+<main class="flex-1 mt-16 mb-20 md:mb-0 p-margin-mobile md:p-margin-desktop md:ml-80">
+<!-- Header & Search -->
+<div class="mb-8 max-w-4xl mx-auto">
+<h2 class="font-headline-lg-mobile md:font-headline-lg text-headline-lg-mobile md:text-headline-lg mb-4 text-on-surface">Manage Coordinators</h2>
+<div class="relative w-full">
+<div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none h-[48px]">
+<span class="material-symbols-outlined text-on-surface-variant">search</span>
+</div>
+<input class="w-full h-[48px] pl-12 pr-4 bg-surface-container-low border-b-2 border-outline-variant focus:border-primary focus:ring-0 rounded-t-DEFAULT font-body-md text-on-surface placeholder:text-on-surface-variant transition-colors" placeholder="Search by ID, Username, or Name..." type="text"/>
+<label class="absolute text-label-sm text-primary -top-2 left-3 bg-surface-container-low px-1 opacity-0 transition-opacity">Search</label>
+</div>
+</div>
+<!-- Coordinator List -->
+<div class="max-w-4xl mx-auto flex flex-col gap-4">
+<!-- Coordinator Card 1 -->
+<div class="bg-surface-container-lowest rounded-lg shadow-[0_4px_8px_-2px_rgba(0,0,0,0.08)] flex flex-col md:flex-row overflow-hidden border border-outline-variant/12 relative">
+<div class="w-2 md:w-3 bg-primary absolute left-0 top-0 bottom-0"></div>
+<div class="p-4 md:p-6 pl-6 md:pl-8 flex-1 flex flex-col md:flex-row md:items-center gap-4">
+<div class="flex items-center gap-4">
+<div class="w-12 h-12 rounded-full bg-surface-container flex items-center justify-center text-primary overflow-hidden">
+<img class="w-full h-full object-cover" data-alt="A professional headshot of a female logistics coordinator in a modern office setting. High contrast, clear lighting, realistic style." src="https://lh3.googleusercontent.com/aida-public/AB6AXuCJBCFLPdXVPcb5_Y2Os5lRts3Nd8bji1fkhU6m8ELPVWE75Xt4DM2IB4JgGiRB2Cvtf3qjYs8ef22h63NX2x6jpl25HwLSNQV6fvAymXDS0szPK8O0r5fu5W9orzRz2Hnj2kmrzSOYQYIin7DtvYEGjgqJCPESE1ULqZYHuTMjoFTJJhO1M622ic3i9NfMbRXQ5Z2t8qUKuC4ocdEalQVN6T9ueYCTzJXJn3yQq9u04nhHL2EZi88"/>
+</div>
+<div>
+<h3 class="font-title-lg text-title-lg text-on-surface">Sarah Jenkins</h3>
+<p class="font-label-lg text-label-lg text-on-surface-variant">ID: CORD-8492 • s.jenkins@madad.org</p>
+</div>
+</div>
+<div class="md:ml-auto flex items-center gap-2 text-on-surface-variant">
+<span class="material-symbols-outlined text-tertiary">location_on</span>
+<span class="font-body-md text-body-md">Sector 4 Distribution Center</span>
+</div>
+</div>
+<div class="bg-surface-container-low p-4 flex flex-row md:flex-col justify-end gap-2 border-t md:border-t-0 md:border-l border-outline-variant/12">
+<button class="h-[48px] px-6 rounded-full border border-secondary text-secondary font-label-lg text-label-lg flex items-center justify-center gap-2 hover:bg-surface-container-high transition-colors">
+<span class="material-symbols-outlined">edit</span>
+                        Edit
+                    </button>
+<button class="h-[48px] px-6 rounded-full bg-status-critical text-on-error font-label-lg text-label-lg flex items-center justify-center gap-2 hover:opacity-90 transition-opacity">
+<span class="material-symbols-outlined fill">delete</span>
+                        Remove
+                    </button>
+</div>
+</div>
+<!-- Coordinator Card 2 -->
+<div class="bg-surface-container-lowest rounded-lg shadow-[0_4px_8px_-2px_rgba(0,0,0,0.08)] flex flex-col md:flex-row overflow-hidden border border-outline-variant/12 relative">
+<div class="w-2 md:w-3 bg-status-warning absolute left-0 top-0 bottom-0"></div>
+<div class="p-4 md:p-6 pl-6 md:pl-8 flex-1 flex flex-col md:flex-row md:items-center gap-4">
+<div class="flex items-center gap-4">
+<div class="w-12 h-12 rounded-full bg-surface-container flex items-center justify-center text-primary overflow-hidden">
+<img class="w-full h-full object-cover" data-alt="A professional headshot of a male emergency response coordinator outdoors in a bright, practical setting. High contrast, clear lighting, realistic style." src="https://lh3.googleusercontent.com/aida-public/AB6AXuAPbhm-fXMC9u7d5Q-ecjOxa5tV9qMGbl_Zvfu8YZOWh04ijX6zTvuyPLd6tM1iLU3ef1GcGcu7rZj4B67_aGb4ewGELd77urjcE04-lAE7YbO3i_m3NVKyp1_6WIDTFLdZAg1sp3oYZHOymbgS-fKnpv2LQIzwTXlZVIB0GNJIjtHUQhE54UUtBmTnZkbf9MSu8VwGrpihkxJ5D6bnw6n-ShiBL8LRMG2wHTl_qufWqUngJcvFOyg"/>
+</div>
+<div>
+<h3 class="font-title-lg text-title-lg text-on-surface">Marcus Thorne</h3>
+<p class="font-label-lg text-label-lg text-on-surface-variant">ID: CORD-3114 • m.thorne@madad.org</p>
+</div>
+</div>
+<div class="md:ml-auto flex items-center gap-2 text-on-surface-variant">
+<span class="material-symbols-outlined text-tertiary">location_on</span>
+<span class="font-body-md text-body-md">North Ridge Relief Hub</span>
+</div>
+</div>
+<div class="bg-surface-container-low p-4 flex flex-row md:flex-col justify-end gap-2 border-t md:border-t-0 md:border-l border-outline-variant/12">
+<button class="h-[48px] px-6 rounded-full border border-secondary text-secondary font-label-lg text-label-lg flex items-center justify-center gap-2 hover:bg-surface-container-high transition-colors">
+<span class="material-symbols-outlined">edit</span>
+                        Edit
+                    </button>
+<button class="h-[48px] px-6 rounded-full bg-status-critical text-on-error font-label-lg text-label-lg flex items-center justify-center gap-2 hover:opacity-90 transition-opacity">
+<span class="material-symbols-outlined fill">delete</span>
+                        Remove
+                    </button>
+</div>
+</div>
+<!-- Coordinator Card 3 -->
+<div class="bg-surface-container-lowest rounded-lg shadow-[0_4px_8px_-2px_rgba(0,0,0,0.08)] flex flex-col md:flex-row overflow-hidden border border-outline-variant/12 relative">
+<div class="w-2 md:w-3 bg-primary absolute left-0 top-0 bottom-0"></div>
+<div class="p-4 md:p-6 pl-6 md:pl-8 flex-1 flex flex-col md:flex-row md:items-center gap-4">
+<div class="flex items-center gap-4">
+<div class="w-12 h-12 rounded-full bg-surface-container flex items-center justify-center text-primary overflow-hidden">
+<span class="material-symbols-outlined font-bold text-2xl">person</span>
+</div>
+<div>
+<h3 class="font-title-lg text-title-lg text-on-surface">Elena Rodriguez</h3>
+<p class="font-label-lg text-label-lg text-on-surface-variant">ID: CORD-9902 • e.rodriguez@madad.org</p>
+</div>
+</div>
+<div class="md:ml-auto flex items-center gap-2 text-on-surface-variant">
+<span class="material-symbols-outlined text-tertiary">location_on</span>
+<span class="font-body-md text-body-md">Central Command Post</span>
+</div>
+</div>
+<div class="bg-surface-container-low p-4 flex flex-row md:flex-col justify-end gap-2 border-t md:border-t-0 md:border-l border-outline-variant/12">
+<button class="h-[48px] px-6 rounded-full border border-secondary text-secondary font-label-lg text-label-lg flex items-center justify-center gap-2 hover:bg-surface-container-high transition-colors">
+<span class="material-symbols-outlined">edit</span>
+                        Edit
+                    </button>
+<button class="h-[48px] px-6 rounded-full bg-status-critical text-on-error font-label-lg text-label-lg flex items-center justify-center gap-2 hover:opacity-90 transition-opacity">
+<span class="material-symbols-outlined fill">delete</span>
+                        Remove
+                    </button>
+</div>
+</div>
+</div>
+</main>
+<!-- Floating Action Button -->
+<button class="fixed bottom-24 md:bottom-8 right-4 md:right-8 w-14 h-14 bg-primary text-on-primary rounded-2xl shadow-lg flex items-center justify-center hover:bg-primary/90 transition-colors z-40 active:scale-95">
+<span class="material-symbols-outlined font-bold text-2xl">add</span>
+</button>
+<!-- NavigationDrawer (Desktop Only) -->
+<nav class="hidden md:flex h-full w-80 fixed left-0 top-0 z-[60] bg-surface dark:bg-surface-dark border-r border-outline-variant/12 shadow-xl flex-col p-4 gap-2">
+<div class="flex items-center gap-4 mb-6 mt-16 p-4">
+<div class="w-12 h-12 rounded-full overflow-hidden bg-surface-container">
+<img alt="Coordinator Profile" class="w-full h-full object-cover" data-alt="A professional headshot avatar of an administrator profile. Clean, modern, high contrast." src="https://lh3.googleusercontent.com/aida-public/AB6AXuABMwqebIL4ukJauYo6qinHo4LKyr1-5j42rRcWKrzYwIUHq1KydGSoBtJJPEBWp3tQ9T7cVq8eJCmaexE9mCATih5ZEPP86DPz6z-UGyzHxxqRleq0lGurHtz_oC4tqj6a9LST8pOCn8zfAPuk_irxggRHEZkVJ8HsJRqhBj8OtQY4dM_C5xRW9VxjxMSiBPkGtQWnz6bqj_zXhJtAOumLqG0YXR7j8Dy6xYzId3tnd-GiZtlUaKo"/>
+</div>
+<div>
+<h2 class="font-title-lg text-title-lg text-on-surface">Relief Coordinator</h2>
+<p class="font-label-sm text-label-sm text-on-surface-variant">Sector 7 Operations</p>
+</div>
+</div>
+<a class="flex items-center gap-3 px-4 py-3 text-on-surface-variant dark:text-on-surface-variant hover:bg-surface-container-high hover:bg-surface-container-low dark:hover:bg-surface-container-highest transition-all rounded-r-full font-label-lg text-label-lg active:opacity-80 transition-opacity" href="#">
+<span class="material-symbols-outlined">local_shipping</span>
+            Fleet Management
+        </a>
+<a class="flex items-center gap-3 px-4 py-3 text-on-surface-variant dark:text-on-surface-variant hover:bg-surface-container-high hover:bg-surface-container-low dark:hover:bg-surface-container-highest transition-all rounded-r-full font-label-lg text-label-lg active:opacity-80 transition-opacity" href="#">
+<span class="material-symbols-outlined">emergency_home</span>
+            Emergency Protocols
+        </a>
+<!-- Assuming Accounts/Settings mapping for this page to show active state -->
+<a class="flex items-center gap-3 px-4 py-3 bg-primary-container dark:bg-primary text-on-primary-container dark:text-on-primary font-bold rounded-r-full font-label-lg text-label-lg active:opacity-80 transition-opacity" href="#">
+<span class="material-symbols-outlined">account_circle</span>
+            Accounts
+        </a>
+</nav>
+<!-- BottomNavBar (Mobile Only) -->
+<nav class="md:hidden fixed bottom-0 w-full z-50 rounded-t-xl bg-surface-container dark:bg-surface-container-lowest border-t border-outline-variant/12 shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.05)] fixed bottom-0 left-0 right-0 flex justify-around items-center h-20 px-2 pb-2">
+<a class="flex flex-col items-center justify-center text-on-surface-variant dark:text-on-surface-variant py-1 hover:bg-surface-container-high dark:hover:bg-surface-variant active:scale-90 transition-transform w-16" href="#">
+<span class="material-symbols-outlined mb-1">inventory_2</span>
+<span class="font-label-sm text-label-sm">Resources</span>
+</a>
+<a class="flex flex-col items-center justify-center text-on-surface-variant dark:text-on-surface-variant py-1 hover:bg-surface-container-high dark:hover:bg-surface-variant active:scale-90 transition-transform w-16" href="#">
+<span class="material-symbols-outlined mb-1">location_on</span>
+<span class="font-label-sm text-label-sm">Centers</span>
+</a>
+<a class="flex flex-col items-center justify-center bg-secondary-container dark:bg-secondary-fixed-dim text-on-secondary-container dark:text-on-secondary-fixed rounded-full px-5 py-1 hover:bg-surface-container-high dark:hover:bg-surface-variant active:scale-90 transition-transform" href="#">
+<span class="material-symbols-outlined mb-1 fill">account_circle</span>
+<span class="font-label-sm text-label-sm">Accounts</span>
+</a>
+<a class="flex flex-col items-center justify-center text-on-surface-variant dark:text-on-surface-variant py-1 hover:bg-surface-container-high dark:hover:bg-surface-variant active:scale-90 transition-transform w-16" href="#">
+<span class="material-symbols-outlined mb-1">settings</span>
+<span class="font-label-sm text-label-sm">Settings</span>
+</a>
+</nav>
+<script>
+        // Simple script to handle input focus label floating effect
+        const searchInput = document.querySelector('input[type="text"]');
+        const searchLabel = searchInput.nextElementSibling;
+
+        searchInput.addEventListener('focus', () => {
+            searchLabel.classList.remove('opacity-0');
+            searchLabel.classList.add('opacity-100');
+        });
+
+        searchInput.addEventListener('blur', () => {
+            if (searchInput.value === '') {
+                searchLabel.classList.remove('opacity-100');
+                searchLabel.classList.add('opacity-0');
+            }
+        });
+    </script>
+</body></html>

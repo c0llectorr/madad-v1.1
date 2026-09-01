@@ -1,0 +1,298 @@
+<!DOCTYPE html>
+
+<html class="h-full" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Dispatch Tracking - Driver View</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+          darkMode: "class",
+          theme: {
+            extend: {
+              "colors": {
+                      "on-primary-container": "#fbfdff",
+                      "error": "#ba1a1a",
+                      "secondary": "#575c83",
+                      "on-tertiary-fixed": "#00201c",
+                      "primary-fixed": "#bfe8ff",
+                      "status-critical": "#D81B60",
+                      "on-secondary": "#ffffff",
+                      "on-surface": "#1a1c19",
+                      "on-primary-fixed-variant": "#004d65",
+                      "background": "#fafaf4",
+                      "inverse-surface": "#2f312e",
+                      "tertiary-fixed": "#99f3e4",
+                      "on-primary": "#ffffff",
+                      "on-tertiary-fixed-variant": "#005048",
+                      "error-container": "#ffdad6",
+                      "on-tertiary-container": "#f4fffb",
+                      "surface-dark": "#1A1C1E",
+                      "surface-container-lowest": "#ffffff",
+                      "surface-container-high": "#e8e8e3",
+                      "outline-variant": "#bec8cf",
+                      "on-secondary-fixed": "#13183c",
+                      "status-warning": "#FFB300",
+                      "surface-tint": "#006686",
+                      "on-surface-variant": "#44474E",
+                      "on-error": "#ffffff",
+                      "surface-variant": "#e3e3de",
+                      "primary-fixed-dim": "#73d2fd",
+                      "primary": "#006482",
+                      "tertiary-container": "#1f8276",
+                      "outline": "#6f787f",
+                      "surface-container-highest": "#e3e3de",
+                      "tertiary": "#00685d",
+                      "tertiary-fixed-dim": "#7dd6c8",
+                      "inverse-primary": "#73d2fd",
+                      "on-background": "#1a1c19",
+                      "primary-container": "#007ea4",
+                      "on-error-container": "#93000a",
+                      "surface-container": "#eeeee9",
+                      "surface": "#fafaf4",
+                      "on-secondary-fixed-variant": "#3f446a",
+                      "surface-dim": "#dadad5",
+                      "secondary-fixed": "#dfe0ff",
+                      "secondary-fixed-dim": "#bfc4f0",
+                      "on-primary-fixed": "#001f2a",
+                      "inverse-on-surface": "#f1f1ec",
+                      "on-secondary-container": "#545980",
+                      "on-tertiary": "#ffffff",
+                      "secondary-container": "#cdd1ff",
+                      "surface-bright": "#fafaf4",
+                      "surface-container-low": "#f4f4ef"
+              },
+              "borderRadius": {
+                      "DEFAULT": "0.25rem",
+                      "lg": "0.5rem",
+                      "xl": "0.75rem",
+                      "full": "9999px"
+              },
+              "spacing": {
+                      "margin-mobile": "16px",
+                      "gutter": "16px",
+                      "margin-desktop": "32px",
+                      "margin-tablet": "24px",
+                      "baseline": "8px",
+                      "touch-target-min": "48px"
+              },
+              "fontFamily": {
+                      "label-lg": [
+                              "Inter"
+                      ],
+                      "headline-lg": [
+                              "Inter"
+                      ],
+                      "headline-md": [
+                              "Inter"
+                      ],
+                      "headline-lg-mobile": [
+                              "Inter"
+                      ],
+                      "label-sm": [
+                              "Inter"
+                      ],
+                      "title-lg": [
+                              "Inter"
+                      ],
+                      "body-lg": [
+                              "Inter"
+                      ],
+                      "body-md": [
+                              "Inter"
+                      ]
+              },
+              "fontSize": {
+                      "label-lg": [
+                              "14px",
+                              {
+                                      "lineHeight": "20px",
+                                      "letterSpacing": "0.1px",
+                                      "fontWeight": "600"
+                              }
+                      ],
+                      "headline-lg": [
+                              "32px",
+                              {
+                                      "lineHeight": "40px",
+                                      "letterSpacing": "-0.02em",
+                                      "fontWeight": "700"
+                              }
+                      ],
+                      "headline-md": [
+                              "24px",
+                              {
+                                      "lineHeight": "32px",
+                                      "fontWeight": "600"
+                              }
+                      ],
+                      "headline-lg-mobile": [
+                              "28px",
+                              {
+                                      "lineHeight": "36px",
+                                      "fontWeight": "700"
+                              }
+                      ],
+                      "label-sm": [
+                              "12px",
+                              {
+                                      "lineHeight": "16px",
+                                      "letterSpacing": "0.5px",
+                                      "fontWeight": "500"
+                              }
+                      ],
+                      "title-lg": [
+                              "20px",
+                              {
+                                      "lineHeight": "26px",
+                                      "fontWeight": "600"
+                              }
+                      ],
+                      "body-lg": [
+                              "18px",
+                              {
+                                      "lineHeight": "28px",
+                                      "fontWeight": "400"
+                              }
+                      ],
+                      "body-md": [
+                              "16px",
+                              {
+                                      "lineHeight": "24px",
+                                      "fontWeight": "400"
+                              }
+                      ]
+              }
+      },
+          },
+        }
+      </script>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+</head>
+<body class="bg-background text-on-surface h-full flex flex-col overflow-hidden antialiased font-body-md">
+<!-- Top Navigation (Mobile only as per driver perspective) -->
+<header class="flex justify-between items-center w-full px-margin-mobile h-touch-target-min bg-surface border-b border-secondary/12 shrink-0 md:hidden z-10 relative shadow-sm">
+<div class="flex items-center gap-3">
+<div class="w-8 h-8 rounded-full bg-primary-container text-on-primary-container flex items-center justify-center font-bold">
+<span class="material-symbols-outlined text-sm" data-icon="local_shipping">local_shipping</span>
+</div>
+<h1 class="font-headline-md text-headline-md text-primary tracking-tight">Active Route</h1>
+</div>
+<button class="w-10 h-10 rounded-full hover:bg-surface-container-low transition-colors flex items-center justify-center text-on-surface-variant active:scale-95 duration-100">
+<span class="material-symbols-outlined" data-icon="notifications">notifications</span>
+</button>
+</header>
+<!-- Main Content Area -->
+<main class="flex-1 relative flex flex-col md:flex-row w-full max-w-[1280px] mx-auto">
+<!-- Map Canvas (Background on Mobile, Right Panel on Desktop) -->
+<div class="absolute inset-0 md:relative md:flex-1 w-full h-full md:order-2 z-0">
+<div class="w-full h-full bg-surface-container-high relative overflow-hidden" data-alt="A highly detailed satellite view map interface showing a rural landscape with winding roads. The interface has a clean, modern aesthetic with high contrast white roads and subtle green topography. A distinct blue route line cuts across the terrain, with a pulsing blue dot representing a vehicle's current position. Small UI overlays indicate waypoints. The lighting suggests daytime clarity, suitable for an emergency dispatch tracking system." data-location="Rajanpur, Pakistan" style="background-image: url('https://lh3.googleusercontent.com/aida-public/AB6AXuDQXRRWDfG-tsQybr27ARVS8gRXmx3Pp9Y_JNqWYpBEeZaUc1g2EKZsE5YqUN3hIj7zczg3JRgeRMghkUOzsdaKqW_3F840CjiBeweF4qGJg_DHM_TMu9uHvev9_ibvngpHxMvrxfpNc_qRosu1B6BSR51Vj-6h2dnRyi_DHgqmygfxmQ2t4O-8mG6XmY3ybJj0D5NR8Eqr6XWtX3BVsQyDQnF_wIFQUiEvOghoIM6So6QTYVAy-ss')">
+<!-- Map Overlay Elements (Simulated) -->
+<div class="absolute inset-0 bg-black/5 md:bg-transparent pointer-events-none"></div>
+<!-- Vehicle Marker -->
+<div class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-8 h-8 bg-primary rounded-full border-4 border-white shadow-lg flex items-center justify-center animate-pulse">
+<span class="material-symbols-outlined text-white text-sm" data-icon="navigation" style="font-variation-settings: 'FILL' 1;">navigation</span>
+</div>
+<!-- Target Marker -->
+<div class="absolute top-[20%] left-[70%] w-6 h-6 bg-status-critical rounded-full border-2 border-white shadow-md flex items-center justify-center">
+<span class="material-symbols-outlined text-white text-[12px]" data-icon="location_on" style="font-variation-settings: 'FILL' 1;">location_on</span>
+</div>
+<!-- Route Line (SVG Path Simulation) -->
+<svg class="absolute inset-0 w-full h-full pointer-events-none" preserveaspectratio="none" viewbox="0 0 100 100">
+<path class="opacity-80" d="M 50 50 Q 60 30 70 20" fill="none" stroke="#007ea4" stroke-dasharray="4 2" stroke-linecap="round" stroke-width="2"></path>
+</svg>
+<!-- Current Position Overlay -->
+<div class="absolute top-4 left-4 bg-surface/90 backdrop-blur-sm px-3 py-1.5 rounded-lg border border-secondary/12 shadow-sm pointer-events-none hidden md:block">
+<span class="font-label-sm text-label-sm text-on-surface-variant flex items-center gap-1">
+<span class="material-symbols-outlined text-[14px]" data-icon="my_location">my_location</span>
+                         29.1044° N, 70.3301° E
+                     </span>
+</div>
+</div>
+</div>
+<!-- Foreground UI Panel (Bottom Sheet on Mobile, Left Panel on Desktop) -->
+<div class="absolute bottom-0 w-full z-10 flex flex-col md:relative md:w-[400px] md:h-full md:border-r md:border-secondary/12 bg-transparent md:bg-surface pointer-events-none md:pointer-events-auto shadow-[0_-8px_24px_-4px_rgba(0,0,0,0.1)] md:shadow-none transition-transform duration-300 transform translate-y-0" id="bottom-sheet">
+<div class="bg-surface md:bg-transparent rounded-t-3xl md:rounded-none w-full flex-1 flex flex-col pointer-events-auto h-full max-h-[751px] md:max-h-none overflow-y-auto pb-safe">
+<!-- Mobile Drag Handle -->
+<div class="w-full flex justify-center py-3 md:hidden">
+<div class="w-12 h-1.5 bg-outline-variant rounded-full"></div>
+</div>
+<div class="p-margin-mobile md:p-margin-desktop flex flex-col gap-6 flex-1">
+<!-- Reroute Warning -->
+<div class="bg-error-container/50 border border-status-critical/30 rounded-xl p-4 flex gap-3 items-start shadow-sm">
+<span class="material-symbols-outlined text-status-critical mt-0.5" data-icon="warning_amber">warning_amber</span>
+<div>
+<h3 class="font-title-lg text-title-lg text-on-error-container mb-1">Reroute Required</h3>
+<p class="font-body-md text-body-md text-on-error-container/80 mb-3">Severe flooding reported on Direct Route (N-55). Avoidance path calculated.</p><button class="flex items-center gap-1 text-primary font-label-sm mb-3 hover:underline"><span class="material-symbols-outlined text-[18px]">visibility</span>View Conflict on Map</button>
+<div class="flex flex-col gap-2 bg-surface rounded-lg p-3 border border-error/10">
+<div class="flex justify-between items-center text-sm">
+<span class="text-on-surface-variant line-through">Direct: 12 min</span>
+<span class="font-semibold text-error line-through">Unavailable</span>
+</div>
+<div class="w-full h-[1px] bg-secondary/10"></div>
+<div class="flex justify-between items-center">
+<span class="material-symbols-outlined text-primary text-[16px] mr-1">verified</span><span class="font-label-lg text-label-lg text-on-surface">Avoidance: 18 min</span>
+<span class="font-label-sm text-label-sm bg-primary text-on-primary px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider mr-1">Recommended</span><span class="font-label-sm text-label-sm bg-primary/10 text-primary px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider">Active</span>
+</div>
+</div>
+</div>
+</div>
+<!-- Active Dispatch Card -->
+<div class="bg-surface rounded-2xl border border-secondary/12 shadow-sm overflow-hidden relative">
+<!-- Severity Indicator Bar -->
+<div class="absolute left-0 top-0 bottom-0 w-1.5 bg-status-warning"></div>
+<div class="p-5 pl-6">
+<div class="flex justify-between items-start mb-4">
+<div>
+<span class="font-label-sm text-label-sm text-on-surface-variant uppercase tracking-wider mb-1 block">Current Target</span>
+<h2 class="font-headline-md text-headline-md text-on-surface">Rajanpur Site A</h2>
+</div>
+<button class="w-10 h-10 rounded-full border border-secondary/20 flex items-center justify-center text-primary hover:bg-surface-variant/50 transition-colors">
+<span class="material-symbols-outlined" data-icon="turn_right">turn_right</span>
+</button>
+</div>
+<div class="grid grid-cols-2 gap-4 mt-6">
+<div class="bg-surface-container-low rounded-lg p-3 flex flex-col">
+<span class="material-symbols-outlined text-secondary mb-2" data-icon="route">route</span>
+<span class="font-label-sm text-label-sm text-on-surface-variant mb-0.5">Distance</span>
+<span class="font-title-lg text-title-lg text-on-surface font-semibold">12.4 km</span>
+</div>
+<div class="bg-surface-container-low rounded-lg p-3 flex flex-col">
+<span class="material-symbols-outlined text-secondary mb-2" data-icon="schedule">schedule</span>
+<span class="font-label-sm text-label-sm text-on-surface-variant mb-0.5">ETA</span>
+<span class="font-title-lg text-title-lg text-primary font-semibold">18 min</span>
+</div>
+</div>
+</div>
+<div class="bg-surface-container-lowest px-6 py-3 border-t border-secondary/12 flex items-center gap-2">
+<span class="material-symbols-outlined text-on-surface-variant text-[18px]" data-icon="inventory_2">inventory_2</span>
+<span class="font-body-md text-body-md text-on-surface-variant">Cargo: Medical Supplies, Water</span>
+</div>
+</div>
+</div>
+<!-- Sticky Bottom Action Area -->
+<div class="p-margin-mobile md:p-margin-desktop bg-surface border-t border-secondary/12 mt-auto pb-8 md:pb-margin-desktop"><button class="w-full h-12 mb-3 border-2 border-status-critical text-status-critical rounded-xl font-label-lg text-label-lg flex items-center justify-center gap-2 active:scale-[0.98] transition-transform duration-200 hover:bg-error-container/20"><span class="material-symbols-outlined" data-icon="report_problem">report_problem</span>Report Road Damage</button>
+<button class="w-full h-14 bg-primary text-on-primary rounded-xl font-label-lg text-label-lg flex items-center justify-center gap-2 shadow-md active:scale-[0.98] transition-transform duration-200">
+<span class="material-symbols-outlined" data-icon="check_circle" style="font-variation-settings: 'FILL' 1;">check_circle</span>
+                        Mark as Delivered
+                    </button>
+<!-- Mobile Current Position -->
+<div class="mt-4 text-center md:hidden">
+<span class="font-label-sm text-label-sm text-on-surface-variant opacity-70">
+                            Pos: 29.1044° N, 70.3301° E
+                        </span>
+</div>
+</div>
+</div>
+</div>
+</main>
+<!-- Bottom Navigation Bar (Hidden on Mobile for this focused view as per context, but required by prompt instructions if it were a top-level. Since this is a highly focused task view (Tracking/Delivery), we hide the shell as per logic: 'Automatic Suppression: You MUST exclude the navigation shell if the page intent is: ... Task-Focused') -->
+<!-- Navigation omitted based on "The UX Goal: If the user is in a focused journey or a "dead end" relative to the global nav, hide the shell to prioritize the Canvas." -->
+<div class="hidden fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm" id="flag-road-modal"><div class="bg-surface w-full max-w-md rounded-2xl shadow-xl overflow-hidden"><div class="p-6"><div class="flex items-center gap-3 mb-4"><span class="material-symbols-outlined text-status-critical">flag</span><h2 class="font-headline-md text-headline-md">Flag Road Damage</h2></div><p class="text-on-surface-variant mb-6">Select the type of blockage encountered at your current location.</p><div class="grid gap-3 mb-8"><button class="flex items-center justify-between p-4 rounded-xl border border-secondary/20 hover:bg-surface-container-low transition-colors"><span class="font-label-lg">Flooding</span><span class="material-symbols-outlined text-secondary">water_drop</span></button><button class="flex items-center justify-between p-4 rounded-xl border border-secondary/20 hover:bg-surface-container-low transition-colors"><span class="font-label-lg">Bridge Out</span><span class="material-symbols-outlined text-secondary">broken_image</span></button><button class="flex items-center justify-between p-4 rounded-xl border border-secondary/20 hover:bg-surface-container-low transition-colors"><span class="font-label-lg">Landslide</span><span class="material-symbols-outlined text-secondary">landslide</span></button></div><div class="flex gap-3"><button class="flex-1 h-12 rounded-xl border border-secondary/20 font-label-lg">Cancel</button><button class="flex-1 h-12 rounded-xl bg-primary text-on-primary font-label-lg">Confirm Report</button></div></div></div></div></body></html>

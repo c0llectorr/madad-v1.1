@@ -1,0 +1,335 @@
+<!DOCTYPE html>
+
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>New Report - MADAD</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<script id="tailwind-config">
+        tailwind.config = {
+          darkMode: "class",
+          theme: {
+            extend: {
+              "colors": {
+                      "primary-fixed-dim": "#73d2fd",
+                      "tertiary": "#00685d",
+                      "on-primary-container": "#fbfdff",
+                      "surface-dim": "#dadad5",
+                      "inverse-primary": "#73d2fd",
+                      "on-tertiary-fixed-variant": "#005048",
+                      "surface-container-lowest": "#ffffff",
+                      "surface-container": "#eeeee9",
+                      "inverse-on-surface": "#f1f1ec",
+                      "surface-container-low": "#f4f4ef",
+                      "surface-variant": "#e3e3de",
+                      "on-secondary-container": "#545980",
+                      "on-primary-fixed-variant": "#004d65",
+                      "secondary": "#575c83",
+                      "primary-container": "#007ea4",
+                      "background": "#fafaf4",
+                      "surface-container-highest": "#e3e3de",
+                      "surface-tint": "#006686",
+                      "on-secondary-fixed": "#13183c",
+                      "tertiary-fixed-dim": "#7dd6c8",
+                      "status-critical": "#D81B60",
+                      "on-error-container": "#93000a",
+                      "primary-fixed": "#bfe8ff",
+                      "on-secondary-fixed-variant": "#3f446a",
+                      "on-surface-variant": "#3e484e",
+                      "inverse-surface": "#2f312e",
+                      "secondary-fixed-dim": "#bfc4f0",
+                      "on-secondary": "#ffffff",
+                      "on-tertiary": "#ffffff",
+                      "on-tertiary-container": "#f4fffb",
+                      "on-background": "#1a1c19",
+                      "surface-bright": "#fafaf4",
+                      "tertiary-container": "#1f8276",
+                      "outline": "#6f787f",
+                      "on-surface": "#1a1c19",
+                      "primary": "#006482",
+                      "on-primary-fixed": "#001f2a",
+                      "error": "#ba1a1a",
+                      "on-error": "#ffffff",
+                      "error-container": "#ffdad6",
+                      "surface-dark": "#1A1C1E",
+                      "surface": "#fafaf4",
+                      "outline-variant": "#bec8cf",
+                      "secondary-fixed": "#dfe0ff",
+                      "on-tertiary-fixed": "#00201c",
+                      "secondary-container": "#cdd1ff",
+                      "tertiary-fixed": "#99f3e4",
+                      "surface-container-high": "#e8e8e3",
+                      "on-primary": "#ffffff",
+                      "status-warning": "#FFB300"
+              },
+              "borderRadius": {
+                      "DEFAULT": "0.25rem",
+                      "lg": "0.5rem",
+                      "xl": "0.75rem",
+                      "full": "9999px"
+              },
+              "spacing": {
+                      "margin-tablet": "24px",
+                      "margin-desktop": "32px",
+                      "gutter": "16px",
+                      "baseline": "8px",
+                      "touch-target-min": "48px",
+                      "margin-mobile": "16px"
+              },
+              "fontFamily": {
+                      "headline-md": [
+                              "Inter"
+                      ],
+                      "headline-lg": [
+                              "Inter"
+                      ],
+                      "label-lg": [
+                              "Inter"
+                      ],
+                      "label-sm": [
+                              "Inter"
+                      ],
+                      "body-md": [
+                              "Inter"
+                      ],
+                      "headline-lg-mobile": [
+                              "Inter"
+                      ],
+                      "title-lg": [
+                              "Inter"
+                      ],
+                      "body-lg": [
+                              "Inter"
+                      ]
+              },
+              "fontSize": {
+                      "headline-md": [
+                              "24px",
+                              {
+                                      "lineHeight": "32px",
+                                      "fontWeight": "600"
+                              }
+                      ],
+                      "headline-lg": [
+                              "32px",
+                              {
+                                      "lineHeight": "40px",
+                                      "letterSpacing": "-0.02em",
+                                      "fontWeight": "700"
+                              }
+                      ],
+                      "label-lg": [
+                              "14px",
+                              {
+                                      "lineHeight": "20px",
+                                      "letterSpacing": "0.1px",
+                                      "fontWeight": "600"
+                              }
+                      ],
+                      "label-sm": [
+                              "12px",
+                              {
+                                      "lineHeight": "16px",
+                                      "letterSpacing": "0.5px",
+                                      "fontWeight": "500"
+                              }
+                      ],
+                      "body-md": [
+                              "16px",
+                              {
+                                      "lineHeight": "24px",
+                                      "fontWeight": "400"
+                              }
+                      ],
+                      "headline-lg-mobile": [
+                              "28px",
+                              {
+                                      "lineHeight": "36px",
+                                      "fontWeight": "700"
+                              }
+                      ],
+                      "title-lg": [
+                              "20px",
+                              {
+                                      "lineHeight": "26px",
+                                      "fontWeight": "600"
+                              }
+                      ],
+                      "body-lg": [
+                              "18px",
+                              {
+                                      "lineHeight": "28px",
+                                      "fontWeight": "400"
+                              }
+                      ]
+              }
+            },
+          },
+        }
+    </script>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        .material-symbols-outlined.fill {
+            font-variation-settings: 'FILL' 1;
+        }
+        
+        /* Floating label styles */
+        .input-group {
+            position: relative;
+        }
+        .input-group input:focus + label,
+        .input-group input:not(:placeholder-shown) + label {
+            transform: translateY(-50%) scale(0.85);
+            top: 0;
+            background-color: theme('colors.surface-container-lowest');
+            padding: 0 4px;
+            color: theme('colors.primary');
+        }
+    </style>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+</head>
+<body class="bg-background text-on-background min-h-screen flex flex-col font-body-md antialiased md:max-w-md md:mx-auto md:shadow-2xl md:my-8 md:rounded-3xl overflow-hidden relative">
+<!-- TopAppBar -->
+<header class="bg-surface border-b border-secondary/12 flex justify-between items-center w-full px-margin-mobile h-touch-target-min z-20">
+<button aria-label="Go back" class="flex items-center justify-center w-12 h-12 rounded-full hover:bg-surface-container-low transition-colors active:scale-95 duration-100">
+<span class="material-symbols-outlined text-primary">arrow_back</span>
+</button>
+<h1 class="font-headline-lg-mobile text-headline-lg-mobile text-primary tracking-tight">New Report</h1>
+<div class="w-12 h-12"></div> <!-- Spacer for center alignment -->
+</header>
+<!-- Tabs -->
+<div class="flex w-full bg-surface border-b border-secondary/12 z-10 sticky top-0">
+<button class="flex-1 py-4 text-center font-label-lg text-label-lg text-on-surface-variant hover:bg-surface-container-low transition-colors border-b-2 border-transparent">
+            Free Text
+        </button>
+<button class="flex-1 py-4 text-center font-label-lg text-label-lg text-primary font-bold border-b-2 border-primary bg-primary/5 transition-colors">
+            Structured Form
+        </button>
+</div>
+<!-- Main Content -->
+<main class="flex-1 overflow-y-auto p-margin-mobile pb-32 flex flex-col gap-6">
+<!-- Incident Location Section -->
+<section class="bg-surface-container-lowest p-6 rounded-xl shadow-sm border border-secondary/12 flex flex-col gap-4">
+<h2 class="font-title-lg text-title-lg text-on-surface flex items-center gap-2">
+<span class="material-symbols-outlined text-primary" data-icon="location_on" data-weight="fill">location_on</span>
+                Incident Location
+            </h2>
+<div class="input-group mt-2">
+<input class="block w-full px-4 py-3 bg-surface-container-lowest border border-secondary/20 rounded-lg text-on-surface focus:ring-2 focus:ring-primary focus:border-primary transition-all h-touch-target-min" id="locationName" placeholder=" " type="text"/>
+<label class="absolute left-4 top-1/2 transform -translate-y-1/2 text-on-surface-variant font-body-md transition-all pointer-events-none" for="locationName">Location Name</label>
+</div><div class="grid grid-cols-2 gap-3">
+<div class="input-group">
+<input class="block w-full px-4 py-3 bg-surface-container-low border border-secondary/12 rounded-lg text-on-surface-variant font-medium h-touch-target-min cursor-not-allowed" id="latitude" placeholder=" " readonly="" type="text" value="33.8938"/>
+<label class="absolute left-4 top-0 transform -translate-y-1/2 scale(0.85) bg-surface-container-lowest px-1 text-primary font-body-md pointer-events-none" for="latitude">Latitude</label>
+</div>
+<div class="input-group">
+<input class="block w-full px-4 py-3 bg-surface-container-low border border-secondary/12 rounded-lg text-on-surface-variant font-medium h-touch-target-min cursor-not-allowed" id="longitude" placeholder=" " readonly="" type="text" value="35.5018"/>
+<label class="absolute left-4 top-0 transform -translate-y-1/2 scale(0.85) bg-surface-container-lowest px-1 text-primary font-body-md pointer-events-none" for="longitude">Longitude</label>
+</div>
+</div>
+<button class="flex items-center justify-center gap-2 w-full h-touch-target-min rounded-lg border-2 border-primary/30 text-primary hover:bg-surface-container-low transition-colors active:scale-[0.98]">
+<span class="material-symbols-outlined">map</span>
+<span class="font-label-lg text-label-lg">Search for Location</span>
+</button>
+</section>
+<!-- Impact Assessment Section -->
+<section class="bg-surface-container-lowest p-6 rounded-xl shadow-sm border border-secondary/12 flex flex-col gap-4">
+<div class="flex items-center gap-3 mb-2">
+<div class="w-1.5 h-6 bg-status-warning rounded-full"></div>
+<h2 class="font-title-lg text-title-lg text-on-surface">Impact Assessment</h2>
+</div>
+<div class="input-group">
+<input class="block w-full px-4 py-3 bg-surface-container-lowest border border-secondary/20 rounded-lg text-on-surface focus:ring-2 focus:ring-primary focus:border-primary transition-all h-touch-target-min" id="headcount" placeholder=" " type="number"/>
+<label class="absolute left-4 top-1/2 transform -translate-y-1/2 text-on-surface-variant font-body-md transition-all pointer-events-none" for="headcount">Estimated Headcount</label>
+</div>
+<div class="mt-2">
+<label class="block font-label-lg text-label-lg text-on-surface-variant mb-2">Severity Level</label>
+<div class="grid grid-cols-4 gap-2">
+<button class="py-2 rounded-lg border border-secondary/20 font-label-sm text-label-sm text-on-surface-variant hover:bg-surface-container-low">Low</button>
+<button class="py-2 rounded-lg border border-secondary/20 font-label-sm text-label-sm text-on-surface-variant hover:bg-surface-container-low">Medium</button>
+<button class="py-2 rounded-lg border-2 border-status-warning bg-status-warning/10 font-label-sm text-label-sm text-status-warning font-bold">High</button>
+<button class="py-2 rounded-lg border border-secondary/20 font-label-sm text-label-sm text-on-surface-variant hover:bg-surface-container-low">Critical</button>
+</div>
+</div>
+</section>
+<!-- Relief Needs Section -->
+<section class="bg-surface-container-lowest p-6 rounded-xl shadow-sm border border-secondary/12 flex flex-col gap-4">
+<h2 class="font-title-lg text-title-lg text-on-surface flex items-center gap-2">
+<span class="material-symbols-outlined text-primary">volunteer_activism</span>
+                Relief Needs
+            </h2>
+<p class="font-body-md text-on-surface-variant text-sm">Select all required immediate assistance</p>
+<div class="flex flex-wrap gap-2 mt-2">
+<!-- Chips -->
+<button class="flex items-center gap-1.5 px-4 py-2 rounded-full border-2 border-primary bg-primary-container text-on-primary-container font-label-sm transition-colors">
+<span class="material-symbols-outlined text-[18px]" data-icon="nutrition">nutrition</span>
+                    Food
+                </button>
+<button class="flex items-center gap-1.5 px-4 py-2 rounded-full border border-secondary/20 text-on-surface-variant hover:bg-surface-container-low font-label-sm transition-colors">
+<span class="material-symbols-outlined text-[18px]" data-icon="water_drop">water_drop</span>
+                    Water
+                </button>
+<button class="flex items-center gap-1.5 px-4 py-2 rounded-full border-2 border-status-critical bg-status-critical/10 text-status-critical font-label-sm font-bold transition-colors">
+<span class="material-symbols-outlined text-[18px]" data-icon="medical_services">medical_services</span>
+                    Medical Evac
+                </button>
+<button class="flex items-center gap-1.5 px-4 py-2 rounded-full border border-secondary/20 text-on-surface-variant hover:bg-surface-container-low font-label-sm transition-colors">
+<span class="material-symbols-outlined text-[18px]">home_work</span>
+                    Shelter
+                </button>
+<button class="flex items-center gap-1.5 px-4 py-2 rounded-full border border-secondary/20 text-on-surface-variant hover:bg-surface-container-low font-label-sm transition-colors">
+<span class="material-symbols-outlined text-[18px]">medication</span>
+                    Medicine
+                </button>
+<button class="flex items-center gap-1.5 px-4 py-2 rounded-full border border-secondary/20 text-on-surface-variant hover:bg-surface-container-low font-label-sm transition-colors">
+<span class="material-symbols-outlined text-[18px]">directions_run</span>
+                    Gen. Evac
+                </button>
+</div>
+</section>
+<!-- Urgency Flags Section -->
+<section class="bg-surface-container-lowest p-6 rounded-xl shadow-sm border border-secondary/12 flex flex-col gap-4">
+<h2 class="font-title-lg text-title-lg text-on-surface flex items-center gap-2">
+<span class="material-symbols-outlined text-primary">warning</span>
+                Urgency Flags
+            </h2>
+<div class="grid grid-cols-1 gap-3 mt-2">
+<label class="flex items-center p-3 border border-secondary/20 rounded-lg hover:bg-surface-container-low cursor-pointer transition-colors h-touch-target-min">
+<input class="w-5 h-5 text-primary border-secondary/40 rounded focus:ring-primary focus:ring-2" type="checkbox"/>
+<span class="ml-3 font-body-md text-on-surface">Elderly Present</span>
+</label>
+<label class="flex items-center p-3 border border-secondary/20 rounded-lg hover:bg-surface-container-low cursor-pointer transition-colors h-touch-target-min bg-primary/5 border-primary/30">
+<input checked="" class="w-5 h-5 text-primary border-secondary/40 rounded focus:ring-primary focus:ring-2" type="checkbox"/>
+<span class="ml-3 font-body-md text-on-surface font-medium">Children Present</span>
+</label>
+<label class="flex items-center p-3 border border-secondary/20 rounded-lg hover:bg-surface-container-low cursor-pointer transition-colors h-touch-target-min">
+<input class="w-5 h-5 text-primary border-secondary/40 rounded focus:ring-primary focus:ring-2" type="checkbox"/>
+<span class="ml-3 font-body-md text-on-surface">Pregnancy</span>
+</label>
+<label class="flex items-center p-3 border-2 border-status-critical/30 rounded-lg hover:bg-status-critical/5 cursor-pointer transition-colors h-touch-target-min bg-status-critical/5">
+<input checked="" class="w-5 h-5 text-status-critical border-status-critical rounded focus:ring-status-critical focus:ring-2" type="checkbox"/>
+<span class="ml-3 font-body-md text-status-critical font-bold flex items-center gap-2">
+                        Water Rising Fast
+                        <span class="material-symbols-outlined text-[18px]">flood</span>
+</span>
+</label>
+</div>
+</section>
+</main>
+<!-- Bottom Action Area -->
+<div class="fixed bottom-0 left-0 w-full md:absolute bg-surface-container-lowest border-t border-secondary/12 p-4 pb-6 shadow-[0_-4px_16px_-4px_rgba(0,0,0,0.1)] z-30">
+<button class="w-full h-14 bg-primary text-on-primary rounded-xl font-label-lg text-label-lg flex items-center justify-center gap-2 shadow-lg active:scale-[0.98] transition-transform hover:bg-primary-fixed-variant">
+<span class="material-symbols-outlined" data-icon="send" data-weight="fill">send</span>
+            Submit Report
+        </button>
+</div>
+</body></html>

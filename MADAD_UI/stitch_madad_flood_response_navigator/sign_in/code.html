@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>MADAD - Support Center Login</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+      tailwind.config = {
+        darkMode: "class",
+        theme: {
+          extend: {
+            "colors": {
+                    "on-primary-container": "#fbfdff",
+                    "error": "#ba1a1a",
+                    "secondary": "#575c83",
+                    "on-tertiary-fixed": "#00201c",
+                    "primary-fixed": "#bfe8ff",
+                    "status-critical": "#D81B60",
+                    "on-secondary": "#ffffff",
+                    "on-surface": "#1a1c19",
+                    "on-primary-fixed-variant": "#004d65",
+                    "background": "#fafaf4",
+                    "inverse-surface": "#2f312e",
+                    "tertiary-fixed": "#99f3e4",
+                    "on-primary": "#ffffff",
+                    "on-tertiary-fixed-variant": "#005048",
+                    "error-container": "#ffdad6",
+                    "on-tertiary-container": "#f4fffb",
+                    "surface-dark": "#1A1C1E",
+                    "surface-container-lowest": "#ffffff",
+                    "surface-container-high": "#e8e8e3",
+                    "outline-variant": "#bec8cf",
+                    "on-secondary-fixed": "#13183c",
+                    "status-warning": "#FFB300",
+                    "surface-tint": "#006686",
+                    "on-surface-variant": "#44474E",
+                    "on-error": "#ffffff",
+                    "surface-variant": "#e3e3de",
+                    "primary-fixed-dim": "#73d2fd",
+                    "primary": "#006482",
+                    "tertiary-container": "#1f8276",
+                    "outline": "#6f787f",
+                    "surface-container-highest": "#e3e3de",
+                    "tertiary": "#00685d",
+                    "tertiary-fixed-dim": "#7dd6c8",
+                    "inverse-primary": "#73d2fd",
+                    "on-background": "#1a1c19",
+                    "primary-container": "#007ea4",
+                    "on-error-container": "#93000a",
+                    "surface-container": "#eeeee9",
+                    "surface": "#fafaf4",
+                    "on-secondary-fixed-variant": "#3f446a",
+                    "surface-dim": "#dadad5",
+                    "secondary-fixed": "#dfe0ff",
+                    "secondary-fixed-dim": "#bfc4f0",
+                    "on-primary-fixed": "#001f2a",
+                    "inverse-on-surface": "#f1f1ec",
+                    "on-secondary-container": "#545980",
+                    "on-tertiary": "#ffffff",
+                    "secondary-container": "#cdd1ff",
+                    "surface-bright": "#fafaf4",
+                    "surface-container-low": "#f4f4ef"
+            },
+            "borderRadius": {
+                    "DEFAULT": "0.25rem",
+                    "lg": "0.5rem",
+                    "xl": "0.75rem",
+                    "full": "9999px"
+            },
+            "spacing": {
+                    "margin-mobile": "16px",
+                    "gutter": "16px",
+                    "margin-desktop": "32px",
+                    "margin-tablet": "24px",
+                    "baseline": "8px",
+                    "touch-target-min": "48px"
+            },
+            "fontFamily": {
+                    "label-lg": ["Inter"],
+                    "headline-lg": ["Inter"],
+                    "headline-md": ["Inter"],
+                    "headline-lg-mobile": ["Inter"],
+                    "label-sm": ["Inter"],
+                    "title-lg": ["Inter"],
+                    "body-lg": ["Inter"],
+                    "body-md": ["Inter"]
+            },
+            "fontSize": {
+                    "label-lg": ["14px", {"lineHeight": "20px", "letterSpacing": "0.1px", "fontWeight": "600"}],
+                    "headline-lg": ["32px", {"lineHeight": "40px", "letterSpacing": "-0.02em", "fontWeight": "700"}],
+                    "headline-md": ["24px", {"lineHeight": "32px", "fontWeight": "600"}],
+                    "headline-lg-mobile": ["28px", {"lineHeight": "36px", "fontWeight": "700"}],
+                    "label-sm": ["12px", {"lineHeight": "16px", "letterSpacing": "0.5px", "fontWeight": "500"}],
+                    "title-lg": ["20px", {"lineHeight": "26px", "fontWeight": "600"}],
+                    "body-lg": ["18px", {"lineHeight": "28px", "fontWeight": "400"}],
+                    "body-md": ["16px", {"lineHeight": "24px", "fontWeight": "400"}]
+            }
+          }
+        }
+      }
+    </script>
+<style>
+        .material-symbols-outlined {
+          font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+    </style>
+</head>
+<body class="bg-background text-on-surface min-h-screen flex items-center justify-center p-margin-mobile md:p-margin-desktop antialiased">
+<!-- Decorative background elements -->
+<div class="fixed inset-0 overflow-hidden pointer-events-none -z-10">
+<div class="absolute top-0 right-0 w-[800px] h-[800px] bg-primary/5 rounded-full blur-3xl -translate-y-1/2 translate-x-1/3"></div>
+<div class="absolute bottom-0 left-0 w-[600px] h-[600px] bg-secondary/5 rounded-full blur-3xl translate-y-1/3 -translate-x-1/4"></div>
+</div>
+<!-- Login Container -->
+<main class="w-full max-w-md bg-surface-container-lowest rounded-xl shadow-[0_4px_6px_-1px_rgba(87,92,131,0.08)] border border-secondary/12 overflow-hidden flex flex-col relative z-10">
+<!-- Header Section -->
+<header class="p-8 pb-6 flex flex-col items-center text-center border-b border-secondary/12 bg-surface-container-low">
+<div class="w-16 h-16 rounded-full bg-primary-container text-on-primary-container flex items-center justify-center mb-6 shadow-sm">
+<span class="material-symbols-outlined text-4xl" data-weight="fill" style="font-variation-settings: 'FILL' 1;">security</span>
+</div>
+<h1 class="font-headline-lg-mobile text-headline-lg-mobile md:font-headline-lg md:text-headline-lg text-primary tracking-tight mb-2">MADAD</h1>
+<p class="font-body-md text-body-md text-on-surface-variant">Log in to access your Support Center dashboard.</p>
+</header>
+<!-- Form Section -->
+<div class="p-8 flex-grow">
+<form action="#" class="space-y-6" method="POST">
+<!-- Username Field -->
+<div class="space-y-1">
+<label class="font-label-lg text-label-lg text-on-surface block" for="username">Username</label>
+<div class="relative">
+<div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+<span class="material-symbols-outlined text-secondary/60">person</span>
+</div>
+<input class="block w-full pl-10 pr-3 py-3 border border-secondary/12 rounded-lg bg-surface focus:ring-2 focus:ring-primary focus:border-primary font-body-md text-body-md text-on-surface h-touch-target-min transition-shadow" id="username" name="username" placeholder="Coordinator ID or Email" required="" type="text"/>
+</div>
+</div>
+<!-- Password Field -->
+<div class="space-y-1">
+<label class="font-label-lg text-label-lg text-on-surface block" for="password">Password</label>
+<div class="relative">
+<div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+<span class="material-symbols-outlined text-secondary/60">lock</span>
+</div>
+<input class="block w-full pl-10 pr-3 py-3 border border-secondary/12 rounded-lg bg-surface focus:ring-2 focus:ring-primary focus:border-primary font-body-md text-body-md text-on-surface h-touch-target-min transition-shadow" id="password" name="password" placeholder="Enter your password" required="" type="password"/>
+</div>
+</div>
+<!-- Submit Button -->
+<div class="pt-2">
+<button class="w-full flex items-center justify-center bg-primary text-on-primary font-label-lg text-label-lg rounded-full h-touch-target-min shadow-sm hover:bg-primary-container hover:text-on-primary-container active:scale-95 transition-all duration-200" type="submit">
+                        Sign In
+                        <span class="material-symbols-outlined ml-2 text-lg">arrow_forward</span>
+</button>
+</div>
+</form>
+</div>
+<!-- Footer Links -->
+<footer class="p-6 pt-0 flex flex-col gap-3 items-center text-center bg-surface-container-lowest">
+<a class="font-label-lg text-label-lg text-secondary hover:text-primary transition-colors flex items-center gap-1 h-touch-target-min px-4 rounded-lg hover:bg-surface-variant/50" href="#">
+<span class="material-symbols-outlined text-[18px]">help_outline</span>
+                Forgot Password?
+            </a>
+<div class="w-full h-px bg-secondary/12"></div>
+<a class="font-label-lg text-label-lg text-primary hover:text-primary-container transition-colors flex items-center gap-1 h-touch-target-min px-4 rounded-lg hover:bg-surface-variant/50 mt-1" href="#">
+<span class="material-symbols-outlined text-[18px]">admin_panel_settings</span>
+                Request Administrator Access
+            </a>
+</footer>
+</main>
+</body></html>

@@ -1,0 +1,21 @@
+services:
+  db:
+    image: postgres:16
+    container_name: madad-db
+    environment:
+      POSTGRES_USER: madad
+      POSTGRES_PASSWORD: madad
+      POSTGRES_DB: madad
+    ports:
+      - "5433:5432"
+    volumes:
+      - madad_pgdata:/var/lib/postgresql/data
+      - ./backend/postgres/schema.sql:/docker-entrypoint-initdb.d/01_schema.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U madad -d madad"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  madad_pgdata:
