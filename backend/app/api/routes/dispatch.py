@@ -1,0 +1,138 @@
+from fastapi import APIRouter, Depends, HTTPException
+from fastapi.concurrency import run_in_threadpool
+from sqlalchemy.orm import Session
+
+from app.api.deps import require_role
+from app.db.session import get_db
+from app.models import Dispatch, DispatchReroute, DamagedRoad, Depot, Site
+from app.schemas import DispatchCreate, DispatchStatusUpdate, RerouteRequest
+from app.services.routing import (compute_route, get_damaged_edge_pairs, path_to_geojson)
+
+router = APIRouter(prefix="/api/dispatch", tags=["dispatch"])
+
+STATUS_ORDER = {"planned": 0, "en_route": 1, "delivered": 2}
+
+
+@router.post("", status_code=201)
+async def create_dispatch(payload: DispatchCreate, db: Session = Depends(get_db),
+                          user: dict = Depends(require_role("coordinator"))):
+    depot = db.query(Depot).get(payload.depot_id)
+    site = db.query(Site).get(payload.site_id)
+    if not depot or not site:
+        raise HTTPException(status_code=404, detail="Depot or site not found")
+
+    try:
+        for resource in payload.resources:
+            from app.models import Inventory
+            inventory_row = db.query(Inventory).filter(
+                Inventory.depot_id == payload.depot_id,
+                Inventory.resource_type == resource.resource_type,
+            ).with_for_update().first()
+            if not inventory_row or inventory_row.quantity < resource.quantity:
+                raise HTTPException(status_code=409,
+                                    detail="Insufficient inventory for one or more resources")
+            inventory_row.quantity -= resource.quantity
+
+        damage_rows = db.query(DamagedRoad).filter(
+            DamagedRoad.center_id == user["center_id"], DamagedRoad.active == True).all()
+        damaged_edge_pairs = get_damaged_edge_pairs(damage_rows)
+
+        result = await run_in_threadpool(
+            compute_route, (depot.lat, depot.lng), (site.lat, site.lng), damaged_edge_pairs)
+        if result is None:
+            raise HTTPException(status_code=404,
+                                detail="No route found — origin and destination may be disconnected in the road graph")
+
+        route_geojson = path_to_geojson(result["path_nodes"])
+        new_dispatch = Dispatch(center_id=user["center_id"], site_id=payload.site_id,
+                                depot_id=payload.depot_id, dispatched_by=user["user_id"],
+                                resources_loaded=[r.model_dump() for r in payload.resources],
+                                route_geojson=route_geojson,
+                                distance_km=result["distance_km"],
+                                eta_minutes=round(result["travel_time_sec"] / 60))
+        db.add(new_dispatch)
+        db.flush()
+        db.query(Site).filter(Site.id == payload.site_id).update({"status": "dispatched"})
+        db.commit()
+    except HTTPException:
+        db.rollback()
+        raise
+    except Exception:
+        db.rollback()
+        raise
+
+    return {"dispatch_id": new_dispatch.id, "status": "planned",
+            "route": {"geojson": route_geojson, "distance_km": result["distance_km"]},
+            "eta_minutes": new_dispatch.eta_minutes}
+
+
+@router.patch("/{dispatch_id}/status")
+def update_status(dispatch_id: int, payload: DispatchStatusUpdate, db: Session = Depends(get_db),
+                  user: dict = Depends(require_role("coordinator"))):
+    dispatch = db.query(Dispatch).get(dispatch_id)
+    if not dispatch:
+        raise HTTPException(status_code=404, detail="Dispatch not found")
+    if STATUS_ORDER[payload.status] <= STATUS_ORDER[dispatch.status]:
+        raise HTTPException(status_code=422, detail="Dispatch status cannot move backward")
+
+    dispatch.status = payload.status
+    if payload.status == "delivered":
+        db.query(Site).filter(Site.id == dispatch.site_id).update({"status": "delivered"})
+    db.commit()
+    return {"dispatch_id": dispatch.id, "status": dispatch.status}
+
+
+@router.post("/{dispatch_id}/reroute")
+async def reroute_dispatch(dispatch_id: int, payload: RerouteRequest, db: Session = Depends(get_db),
+                           user: dict = Depends(require_role("coordinator"))):
+    dispatch = db.query(Dispatch).get(dispatch_id)
+    if not dispatch:
+        raise HTTPException(status_code=404, detail="Dispatch not found")
+    if dispatch.status == "delivered":
+        raise HTTPException(status_code=409, detail="Cannot reroute a delivered dispatch")
+
+    site = db.query(Site).get(dispatch.site_id)
+    damage_rows = db.query(DamagedRoad).filter(
+        DamagedRoad.center_id == user["center_id"], DamagedRoad.active == True).all()
+    damaged_edge_pairs = get_damaged_edge_pairs(damage_rows)
+
+    result = await run_in_threadpool(
+        compute_route, (payload.current_lat, payload.current_lng), (site.lat, site.lng), damaged_edge_pairs)
+    if result is None:
+        raise HTTPException(status_code=404,
+                            detail="No route found from current position — destination may be unreachable")
+
+    result_direct = await run_in_threadpool(
+        compute_route, (payload.current_lat, payload.current_lng), (site.lat, site.lng), set())
+
+    old_eta = dispatch.eta_minutes
+    new_eta = round(result["travel_time_sec"] / 60)
+
+    dispatch.route_geojson = path_to_geojson(result["path_nodes"])
+    dispatch.distance_km = result["distance_km"]
+    dispatch.eta_minutes = new_eta
+
+    reroute_log = DispatchReroute(dispatch_id=dispatch_id, triggered_by=user["user_id"],
+                                  current_lat=payload.current_lat, current_lng=payload.current_lng,
+                                  old_eta_minutes=old_eta, new_eta_minutes=new_eta,
+                                  reason=payload.reason)
+    db.add(reroute_log)
+    db.commit()
+
+    return {"dispatch_id": dispatch_id, "distance_km": result["distance_km"], "eta_minutes": new_eta,
+            "geojson": dispatch.route_geojson,
+            "delta_minutes_vs_direct": round((result["travel_time_sec"]
+                                              - result_direct["travel_time_sec"]) / 60)}
+
+
+@router.get("")
+def list_dispatches(center_id: int | None = None, db: Session = Depends(get_db),
+                    user: dict = Depends(require_role("coordinator"))):
+    q = db.query(Dispatch)
+    if center_id:
+        q = q.filter(Dispatch.center_id == center_id)
+    return [{"dispatch_id": d.id, "site_id": d.site_id, "depot_id": d.depot_id,
+             "status": d.status, "distance_km": d.distance_km, "eta_minutes": d.eta_minutes,
+             "route_geojson": d.route_geojson,
+             "resources_loaded": d.resources_loaded, "created_at": d.created_at}
+            for d in q.order_by(Dispatch.created_at.desc()).all()]
