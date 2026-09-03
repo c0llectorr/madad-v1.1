@@ -1,12 +1,13 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { TextInput } from 'react-native';
-import { StyleSheet, Text, View, ScrollView } from 'react-native';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { ActivityIndicator, Pressable, StyleSheet, TextInput, Text, View, ScrollView } from 'react-native';
+import { KeyboardAwareScrollView } from 'react-native-keyboard-aware-scroll-view';
 import { api, LoginResponse } from '../../api';
+import LeafletMap, { LeafletMapHandle } from '../../LeafletMap';
 import {
-  AppBar, BottomNav, Button, Card, Err, Fab, Field, Loading, PillButton,
+  AppBar, BottomNav, Button, Card, Err, Field, Loading, PillButton,
   Screen, SectionTitle, StatusChip, NavTab,
 } from '../../ui';
-import { C, T } from '../../theme';
+import { C, T, RADIUS } from '../../theme';
 
 const NAV: NavTab[] = [
   { key: 'resources', label: 'Resources', icon: '▦' },
@@ -39,11 +40,9 @@ export default function AdminShell({ session, onLogout }: { session: LoginRespon
 
   return (
     <View style={{ flex: 1, backgroundColor: C.background }}>
-      <AppBar title="MADAD" onMenu={() => {}} right={
-        <PressableBell />
-      } />
+      <AppBar title="MADAD" right={<PressableBell />} />
       <View style={{ flex: 1 }}>
-        {tab === 'resources' && <ResourcesTab centers={centers} key2={key} go={setView} />}
+        {tab === 'resources' && <ResourcesTab centers={centers} key2={key} />}
         {tab === 'centers' && <CentersTab centers={centers} key2={key} refresh={refresh} go={setView} />}
         {tab === 'accounts' && <AccountsTab key2={key} refresh={refresh} go={setView} />}
         {tab === 'settings' && <SettingsTab session={session} onLogout={onLogout} />}
@@ -58,9 +57,8 @@ function PressableBell() {
 }
 
 /* ---------------- Resources tab ---------------- */
-function ResourcesTab({ centers, key2, go }: {
+function ResourcesTab({ centers, key2 }: {
   centers: Center[]; key2: number;
-  go: (v: { name: 'addCenter' | 'addCoordinator' }) => void;
 }) {
   const [depotsByCenter, setDepotsByCenter] = useState<Record<number, Depot[]>>({});
   const [err, setErr] = useState<string | null>(null);
@@ -91,15 +89,6 @@ function ResourcesTab({ centers, key2, go }: {
       <SectionTitle title="Resource Management"
         sub="Real-time status across all regional depots." />
       <Err msg={err} />
-
-      <View style={{ flexDirection: 'row', gap: 10, marginBottom: 16 }}>
-        <View style={{ flex: 1 }}>
-          <PillButton title="Add Center" onPress={() => go({ name: 'addCenter' })} icon="＋" />
-        </View>
-        <View style={{ flex: 1 }}>
-          <PillButton title="Add Coordinator" kind="primary" onPress={() => go({ name: 'addCoordinator' })} icon="👤" />
-        </View>
-      </View>
 
       {centers.length === 0 && <Text style={[T.bodyMd, { color: C.onSurfaceVariant }]}>No centers yet — add one to begin.</Text>}
 
@@ -146,7 +135,13 @@ function CentersTab({ centers, key2, refresh, go }: {
 
   return (
     <View style={{ flex: 1 }}>
-      <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: 16, paddingBottom: 100 }}>
+      <KeyboardAwareScrollView
+        style={{ flex: 1 }}
+        contentContainerStyle={{ padding: 16, paddingBottom: 16 }}
+        keyboardShouldPersistTaps="handled"
+        enableOnAndroid
+        extraScrollHeight={16}
+      >
         <SectionTitle title="Manage Centers" sub="View and manage operational relief centers." />
 
         <View style={cs.searchWrap}>
@@ -156,7 +151,7 @@ function CentersTab({ centers, key2, refresh, go }: {
             placeholder="Search by Name or Unique Code.." placeholderTextColor={C.outline} />
         </View>
 
-        {filtered.map(c => (
+        {centers.map(c => (
           <Card key={c.id} barColor={C.primary} onPress={() => setOpenId(openId === c.id ? null : c.id)}>
             <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
               <Text style={[T.titleLg, { color: C.onSurface, flex: 1 }]}>{c.name}</Text>
@@ -168,8 +163,19 @@ function CentersTab({ centers, key2, refresh, go }: {
           </Card>
         ))}
         {filtered.length === 0 && <Text style={[T.bodyMd, { color: C.onSurfaceVariant }]}>No centers found.</Text>}
-      </ScrollView>
-      <Fab onPress={() => go({ name: 'addCenter' })} />
+      </KeyboardAwareScrollView>
+
+      {/* Anchored action bar — always visible at the bottom of this tab */}
+      <View style={cs.actionBar}>
+        <Pressable
+          style={({ pressed }) => [cs.actionBtn, pressed && { opacity: 0.85 }]}
+          onPress={() => go({ name: 'addCenter' })}
+          accessibilityRole="button"
+        >
+          <Text style={cs.actionBtnIcon}>＋</Text>
+          <Text style={cs.actionBtnLabel}>Add New Center</Text>
+        </Pressable>
+      </View>
     </View>
   );
 }
@@ -268,7 +274,7 @@ function AccountsTab({ key2, refresh, go }: {
 
   return (
     <View style={{ flex: 1 }}>
-      <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: 16, paddingBottom: 100 }}>
+      <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: 16, paddingBottom: 16 }}>
         <SectionTitle title="Manage Coordinators" sub="Operational accounts assigned to support centers." />
         <Err msg={err} />
         {list.map(u => (
@@ -294,7 +300,18 @@ function AccountsTab({ key2, refresh, go }: {
         ))}
         {list.length === 0 && <Text style={[T.bodyMd, { color: C.onSurfaceVariant }]}>No coordinators yet.</Text>}
       </ScrollView>
-      <Fab onPress={() => go({ name: 'addCoordinator' })} />
+
+      {/* Anchored action bar */}
+      <View style={cs.actionBar}>
+        <Pressable
+          style={({ pressed }) => [cs.actionBtn, pressed && { opacity: 0.85 }]}
+          onPress={() => go({ name: 'addCoordinator' })}
+          accessibilityRole="button"
+        >
+          <Text style={cs.actionBtnIcon}>＋</Text>
+          <Text style={cs.actionBtnLabel}>Add Coordinator</Text>
+        </Pressable>
+      </View>
     </View>
   );
 }
@@ -315,56 +332,146 @@ function SettingsTab({ session, onLogout }: { session: LoginResponse; onLogout: 
 
 /* ---------------- Add Center screen ---------------- */
 function AddCenterScreen({ centers, onBack }: { centers: Center[]; onBack: () => void }) {
-  const [name, setName] = useState(''); const [code, setCode] = useState('');
-  const [region, setRegion] = useState(''); const [lat, setLat] = useState(''); const [lng, setLng] = useState('');
+  const [name, setName] = useState('');
+  const [code, setCode] = useState('');
+  const [region, setRegion] = useState('');
+  const [lat, setLat] = useState('');
+  const [lng, setLng] = useState('');
   const [err, setErr] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [geocoding, setGeocoding] = useState(false);
+
+  const mapRef = useRef<LeafletMapHandle>(null);
+  const geoTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Fly to coordinates whenever both become valid numbers
+  useEffect(() => {
+    const la = parseFloat(lat);
+    const lo = parseFloat(lng);
+    if (!isNaN(la) && !isNaN(lo) && la >= -90 && la <= 90 && lo >= -180 && lo <= 180) {
+      mapRef.current?.flyTo(la, lo, 14);
+    }
+  }, [lat, lng]);
+
+  // Geocode by name when coords are empty — debounced 700 ms
+  useEffect(() => {
+    if (geoTimer.current) clearTimeout(geoTimer.current);
+    const q = (name + ' ' + region).trim();
+    if (q.length < 3 || (lat && lng)) return;
+    geoTimer.current = setTimeout(async () => {
+      setGeocoding(true);
+      try {
+        const res = await fetch(
+          `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(q)}&format=json&limit=1`,
+          { headers: { 'Accept-Language': 'en', 'User-Agent': 'MADAD-FloodResponse/1.0' } },
+        );
+        const data = await res.json();
+        if (data.length > 0) {
+          setLat(parseFloat(data[0].lat).toFixed(6));
+          setLng(parseFloat(data[0].lon).toFixed(6));
+        }
+      } catch { /* silent */ } finally { setGeocoding(false); }
+    }, 700);
+    return () => { if (geoTimer.current) clearTimeout(geoTimer.current); };
+  }, [name, region]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const parsedLat = parseFloat(lat);
+  const parsedLng = parseFloat(lng);
+  const hasCoords = !isNaN(parsedLat) && !isNaN(parsedLng);
 
   const submit = async () => {
     setBusy(true); setErr(null);
     try {
-      await api('/centers', { method: 'POST', body: { code, name, region: region || null, lat: parseFloat(lat), lng: parseFloat(lng) } });
+      await api('/centers', { method: 'POST', body: { code, name, region: region || null, lat: parsedLat, lng: parsedLng } });
       onBack();
     } catch (e: any) { setErr(e.message); } finally { setBusy(false); }
   };
 
   return (
-    <Screen title="MADAD" onBack={onBack}>
-      <SectionTitle title="Add New Center"
-        sub="Register a new support center to the MADAD network. Ensure coordinates are accurate for field routing." />
-      <Card barColor={C.primary}>
-        <Text style={[T.titleLg, { color: C.onSurface }]}>Center Information</Text>
-        <View style={{ height: 12 }} />
-        <Field value={name} onChangeText={setName} placeholder="Center Name" />
-        <Field value={code} onChangeText={setCode} placeholder="Unique Code (e.g., C-104)" />
+    <View style={{ flex: 1, backgroundColor: C.background }}>
+      <AppBar title="Add New Center" onBack={onBack} />
 
-        <Text style={[T.titleLg, { color: C.onSurface, marginTop: 8 }]}>Location Details</Text>
-        <View style={{ height: 12 }} />
-        <Field value={region} onChangeText={setRegion} placeholder="Province / Region" />
-        <View style={{ flexDirection: 'row' }}>
-          <View style={{ flex: 1, marginRight: 8 }}>
-            <Field value={lat} onChangeText={setLat} placeholder="Latitude" keyboardType="decimal-pad" />
+      {/* Live map preview — always outside ScrollView */}
+      <View style={cs.previewWrap}>
+        <LeafletMap
+          ref={mapRef}
+          height={180}
+          markers={hasCoords ? [{
+            id: 'center',
+            lat: parsedLat,
+            lng: parsedLng,
+            title: name || 'New center',
+            color: C.primary,
+          }] : []}
+        />
+        <View style={cs.previewBadgeWrap} pointerEvents="none">
+          <View style={[cs.previewBadge, geocoding && { backgroundColor: 'rgba(0,80,150,0.7)' }]}>
+            {geocoding
+              ? <ActivityIndicator size="small" color="#fff" style={{ marginRight: 6 }} />
+              : null}
+            <Text style={cs.previewBadgeText}>
+              {geocoding
+                ? 'Looking up location…'
+                : hasCoords
+                  ? `📍 ${name || `${parsedLat.toFixed(4)}, ${parsedLng.toFixed(4)}`}`
+                  : '🗺 Enter name or coordinates below'}
+            </Text>
           </View>
-          <View style={{ flex: 1 }}>
-            <Field value={lng} onChangeText={setLng} placeholder="Longitude" keyboardType="decimal-pad" />
-          </View>
-        </View>
-        <View style={cs.mapPreview}>
-          <Text style={[T.bodyMd, { color: C.onSurfaceVariant, textAlign: 'center' }]}>
-            Map preview will appear once coordinates are entered
-          </Text>
-        </View>
-      </Card>
-      <Err msg={err} />
-      <View style={{ flexDirection: 'row', marginTop: 8 }}>
-        <View style={{ flex: 1, marginRight: 8 }}>
-          <Button title="Cancel" onPress={onBack} kind="outlined" />
-        </View>
-        <View style={{ flex: 2 }}>
-          <Button title="Register Center" onPress={submit} icon="＋" disabled={busy || !name || !code || !lat || !lng} />
         </View>
       </View>
-    </Screen>
+
+      <KeyboardAwareScrollView
+        style={{ flex: 1 }}
+        contentContainerStyle={{ padding: 16, paddingBottom: 40 }}
+        keyboardShouldPersistTaps="handled"
+        enableOnAndroid
+        extraScrollHeight={24}
+      >
+        <SectionTitle title="Add New Center"
+          sub="Register a new support center. The map updates as you type." />
+
+        <Card barColor={C.primary}>
+          <Text style={[T.titleLg, { color: C.onSurface }]}>Center Information</Text>
+          <View style={{ height: 12 }} />
+          <Field value={name} onChangeText={setName} placeholder="Center Name" />
+          <Field value={code} onChangeText={setCode} placeholder="Unique Code (e.g., C-104)"
+            autoCapitalize="characters" />
+
+          <Text style={[T.titleLg, { color: C.onSurface, marginTop: 8 }]}>Location Details</Text>
+          <View style={{ height: 12 }} />
+          <Field value={region} onChangeText={setRegion} placeholder="Province / Region" />
+          <View style={{ flexDirection: 'row' }}>
+            <View style={{ flex: 1, marginRight: 8 }}>
+              <Field value={lat} onChangeText={setLat} placeholder="Latitude" keyboardType="decimal-pad" />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Field value={lng} onChangeText={setLng} placeholder="Longitude" keyboardType="decimal-pad" />
+            </View>
+          </View>
+          {hasCoords && (
+            <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 2 }}>
+              <Text style={[T.labelSm, { color: C.tertiary, flex: 1 }]}>
+                ✓ Location set — map updated above
+              </Text>
+              <Pressable onPress={() => { setLat(''); setLng(''); }} hitSlop={8}>
+                <Text style={[T.labelSm, { color: C.outline }]}>Clear</Text>
+              </Pressable>
+            </View>
+          )}
+        </Card>
+
+        <Err msg={err} />
+        <View style={{ flexDirection: 'row', marginTop: 4 }}>
+          <View style={{ flex: 1, marginRight: 8 }}>
+            <Button title="Cancel" onPress={onBack} kind="outlined" />
+          </View>
+          <View style={{ flex: 2 }}>
+            <Button title="Register Center" onPress={submit} icon="＋"
+              disabled={busy || !name || !code || !hasCoords} />
+          </View>
+        </View>
+      </KeyboardAwareScrollView>
+    </View>
   );
 }
 
@@ -429,5 +536,60 @@ const cs = StyleSheet.create({
   mapPreview: {
     backgroundColor: C.surfaceContainer, borderRadius: 12, height: 120,
     alignItems: 'center', justifyContent: 'center', marginTop: 4,
+  },
+
+  // Add Center live map preview
+  previewWrap: {
+    position: 'relative',
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: C.outlineVariant,
+  },
+  previewBadgeWrap: {
+    position: 'absolute',
+    top: 8,
+    left: 8,
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  previewBadge: {
+    backgroundColor: 'rgba(0,0,0,0.45)',
+    borderRadius: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  previewBadgeText: {
+    color: '#fff',
+    fontSize: 12,
+    fontWeight: '600' as const,
+  },
+
+  // Sticky bottom action bar replacing the floating FAB
+  actionBar: {
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    backgroundColor: C.surfaceLowest,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: C.outlineVariant,
+  },
+  actionBtn: {
+    backgroundColor: C.primary,
+    borderRadius: RADIUS.md,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 14,
+    gap: 8,
+  },
+  actionBtnIcon: {
+    color: C.onPrimary,
+    fontSize: 20,
+    lineHeight: 22,
+  },
+  actionBtnLabel: {
+    color: C.onPrimary,
+    fontSize: 15,
+    fontWeight: '600' as const,
   },
 });

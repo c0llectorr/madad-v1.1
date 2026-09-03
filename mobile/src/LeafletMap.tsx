@@ -1,5 +1,5 @@
-import React, { useCallback, useMemo, useRef } from 'react';
-import { StyleSheet, View, Dimensions } from 'react-native';
+import React, { useCallback, useImperativeHandle, useMemo, useRef } from 'react';
+import { StyleSheet, View } from 'react-native';
 import { WebView, WebViewNavigation } from 'react-native-webview';
 
 export interface LeafMarker {
@@ -10,6 +10,7 @@ export interface LeafMarker {
   snippet?: string;
   color?: string;   // pin color, CSS
   icon?: 'pin' | 'dot';
+  label?: string;   // single character shown inside the pin
 }
 
 export interface LeafPolyline {
@@ -20,14 +21,19 @@ export interface LeafPolyline {
   dashed?: boolean;
 }
 
+export interface LeafletMapHandle {
+  flyTo: (lat: number, lng: number, zoom?: number) => void;
+  fitAll: () => void;
+}
+
 const HTML = `<!DOCTYPE html>
 <html>
 <head>
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
 <style>
-  html, body { margin: 0; padding: 0; height: 100%; overflow: hidden; background: #F2F2ED; }
-  #map { height: 100%; }
+  html, body { margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; background: #F2F2ED; }
+  #map { position: absolute; top: 0; left: 0; right: 0; bottom: 0; }
   .madad-pin {
     width: 22px; height: 22px; border-radius: 50% 50% 50% 0;
     transform: rotate(-45deg); border: 2px solid #fff;
@@ -38,6 +44,18 @@ const HTML = `<!DOCTYPE html>
     border: 2px solid #fff; box-shadow: 1px 2px 4px rgba(0,0,0,0.35);
   }
   .madad-pin div, .madad-dot div { transform: rotate(45deg); }
+  .madad-pin-label {
+    width: 28px; height: 28px; border-radius: 50% 50% 50% 0;
+    transform: rotate(-45deg); border: 2.5px solid #fff;
+    box-shadow: 1px 2px 5px rgba(0,0,0,0.4);
+    display: flex; align-items: center; justify-content: center;
+  }
+  .madad-pin-label span {
+    transform: rotate(45deg);
+    color: #fff; font-size: 11px; font-weight: 700;
+    font-family: sans-serif; line-height: 1;
+    text-shadow: 0 1px 2px rgba(0,0,0,0.4);
+  }
   .leaflet-popup-content-wrapper { border-radius: 8px; }
 </style>
 </head>
@@ -46,16 +64,31 @@ const HTML = `<!DOCTYPE html>
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script>
 (function () {
-  var map = L.map('map', { zoomControl: true, attributionControl: true })
-    .setView([__LAT__, __LNG__], __ZOOM__);
+  var map = L.map('map', {
+    zoomControl: true,
+    attributionControl: true,
+  }).setView([__LAT__, __LNG__], __ZOOM__);
+
   L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
     maxZoom: 19,
-    attribution: '&copy; OpenStreetMap contributors'
+    noWrap: true,
+    attribution: '&copy; OpenStreetMap contributors',
   }).addTo(map);
 
   var layers = { markers: L.layerGroup().addTo(map), lines: L.layerGroup().addTo(map) };
+  var allPts = [];
 
-  function pinIcon(color, kind) {
+  function pinIcon(color, kind, label) {
+    if (label) {
+      return L.divIcon({
+        className: '',
+        html: '<div class="madad-pin-label" style="background:' + color + '">' +
+              '<span>' + label + '</span></div>',
+        iconSize: [28, 28],
+        iconAnchor: [14, 26],
+        popupAnchor: [0, -24]
+      });
+    }
     return L.divIcon({
       className: '',
       html: '<div class="' + (kind === 'dot' ? 'madad-dot' : 'madad-pin') +
@@ -66,7 +99,13 @@ const HTML = `<!DOCTYPE html>
     });
   }
 
-  // Full redraw driven from React — simple and avoids stale-state bugs.
+  // Called by React after the container is laid out — ensures Leaflet
+  // recalculates the tile grid for the actual pixel dimensions.
+  window.__invalidate = function () {
+    map.invalidateSize({ animate: false });
+  };
+
+  // Full redraw driven from React.
   window.__render = function (payload) {
     layers.markers.clearLayers();
     layers.lines.clearLayers();
@@ -82,13 +121,31 @@ const HTML = `<!DOCTYPE html>
       }
     });
     (payload.markers || []).forEach(function (m) {
-      var marker = L.marker([m.lat, m.lng], { icon: pinIcon(m.color || '#118AB2', m.icon || 'pin') })
+      var marker = L.marker([m.lat, m.lng], { icon: pinIcon(m.color || '#118AB2', m.icon || 'pin', m.label || '') })
         .bindPopup('<b>' + (m.title || '') + '</b>' + (m.snippet ? '<br>' + m.snippet : ''));
       marker.addTo(layers.markers);
       pts.push([m.lat, m.lng]);
     });
-    if (payload.fit && pts.length > 1) {
-      map.fitBounds(L.latLngBounds(pts).pad(0.25), { animate: false });
+    allPts = pts;
+    if (payload.fit && pts.length >= 1) {
+      if (pts.length === 1) {
+        map.setView(pts[0], 13, { animate: false });
+      } else {
+        map.fitBounds(L.latLngBounds(pts).pad(0.2), { animate: false, maxZoom: 14 });
+      }
+    }
+  };
+
+  window.__flyTo = function (lat, lng, zoom) {
+    map.setView([lat, lng], zoom || 13, { animate: true });
+  };
+
+  window.__fitAll = function () {
+    if (allPts.length === 0) return;
+    if (allPts.length === 1) {
+      map.setView(allPts[0], 13, { animate: true });
+    } else {
+      map.fitBounds(L.latLngBounds(allPts).pad(0.2), { animate: true, maxZoom: 14 });
     }
   };
 
@@ -103,10 +160,7 @@ const HTML = `<!DOCTYPE html>
 </body>
 </html>`;
 
-export default function LeafletMap({
-  height, markers = [], polylines = [], onMapPress,
-  center = { lat: 29.85, lng: 70.45 }, zoom = 9, fit = false,
-}: {
+const LeafletMap = React.forwardRef<LeafletMapHandle, {
   height?: number;
   markers?: LeafMarker[];
   polylines?: LeafPolyline[];
@@ -114,23 +168,40 @@ export default function LeafletMap({
   center?: { lat: number; lng: number };
   zoom?: number;
   fit?: boolean;
-}) {
+}>(function LeafletMap({
+  height, markers = [], polylines = [], onMapPress,
+  center = { lat: 29.85, lng: 70.45 }, zoom = 9, fit = false,
+}, ref) {
   const webRef = useRef<WebView>(null);
+
   const html = useMemo(
     () => HTML.replace('__LAT__', String(center.lat))
               .replace('__LNG__', String(center.lng))
               .replace('__ZOOM__', String(zoom)),
-    [center.lat, center.lng, zoom]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    []);   // HTML is fixed at mount — center/zoom are only the initial view
 
   const payload = useMemo(
     () => `window.__render && window.__render(${JSON.stringify({ markers, polylines, fit })}); true;`,
     [markers, polylines, fit]);
 
-  // Push a redraw whenever markers/polylines change, and once after the page
-  // (including the CDN Leaflet scripts, which load synchronously) finishes.
   const inject = useCallback(() => {
-    webRef.current?.injectJavaScript(payload);
-  }, [payload]);
+    // Invalidate first so Leaflet knows the real container size, then render.
+    webRef.current?.injectJavaScript(
+      `window.__invalidate && window.__invalidate(); window.__render && window.__render(${JSON.stringify({ markers, polylines, fit })}); true;`
+    );
+  }, [markers, polylines, fit]);
+
+  useImperativeHandle(ref, () => ({
+    flyTo(lat, lng, z = 13) {
+      webRef.current?.injectJavaScript(
+        `window.__flyTo && window.__flyTo(${lat}, ${lng}, ${z}); true;`
+      );
+    },
+    fitAll() {
+      webRef.current?.injectJavaScript(`window.__fitAll && window.__fitAll(); true;`);
+    },
+  }), []);
 
   const onMessage = useCallback((e: any) => {
     try {
@@ -145,7 +216,7 @@ export default function LeafletMap({
     req.url.startsWith('https://tile.openstreetmap.org'), []);
 
   return (
-    <View style={[styles.wrap, height != null && { height }]}>
+    <View style={[styles.wrap, height != null ? { height } : { flex: 1 }]}>
       <WebView
         ref={webRef}
         originWhitelist={['*']}
@@ -153,6 +224,7 @@ export default function LeafletMap({
         javaScriptEnabled
         domStorageEnabled
         setSupportMultipleWindows={false}
+        scrollEnabled={false}
         onMessage={onMessage}
         onLoadEnd={inject}
         onShouldStartLoadWithRequest={onNavigation}
@@ -162,19 +234,21 @@ export default function LeafletMap({
       <UpdateHook payload={payload} onReady={inject} />
     </View>
   );
-}
+});
 
-// Injects on every payload change — a tiny component so the effect re-runs
-// exactly when the serialized payload string actually differs.
+export default LeafletMap;
+
+// Re-injects whenever markers/polylines change, with a small debounce
+// to let the WebView settle after navigation/layout changes.
 function UpdateHook({ payload, onReady }: { payload: string; onReady: () => void }) {
   React.useEffect(() => {
-    const t = setTimeout(onReady, 250); // let the WebView settle after load
+    const t = setTimeout(onReady, 300);
     return () => clearTimeout(t);
   }, [payload, onReady]);
   return null;
 }
 
 const styles = StyleSheet.create({
-  wrap: { borderRadius: 12, overflow: 'hidden', backgroundColor: '#F2F2ED' },
+  wrap: { overflow: 'hidden', backgroundColor: '#F2F2ED' },
   web: { flex: 1, backgroundColor: 'transparent' },
 });

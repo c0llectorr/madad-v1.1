@@ -1,13 +1,15 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { Pressable, StyleSheet, Text, View, ScrollView } from 'react-native';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { ActivityIndicator, Pressable, StyleSheet, Text, TextInput, View, ScrollView } from 'react-native';
+import { KeyboardAwareScrollView } from 'react-native-keyboard-aware-scroll-view';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Location from 'expo-location';
 import { api, LoginResponse } from '../../api';
-import LeafletMap, { LeafMarker, LeafPolyline } from '../../LeafletMap';
+import LeafletMap, { LeafMarker, LeafPolyline, LeafletMapHandle } from '../../LeafletMap';
 import {
   AppBar, BottomNav, Button, Card, Chip, Err, Fab, Field, Loading, PillButton,
   SectionTitle, StatusChip, Stepper, NavTab,
 } from '../../ui';
-import { C, T, SEVERITY_BAR, SEVERITY_COLORS } from '../../theme';
+import { C, T, RADIUS, SEVERITY_BAR, SEVERITY_COLORS } from '../../theme';
 
 const NAV: NavTab[] = [
   { key: 'home', label: 'Home', icon: '⌂' },
@@ -19,7 +21,18 @@ const NAV: NavTab[] = [
 interface Site { id: number; location_name: string; lat: number; lng: number; estimated_population: number; needs: string[]; urgency_flags: string[]; severity: string | null; confidence: string; priority_score: number | null; status: string }
 interface Depot { id: number; name: string; lat: number; lng: number; inventory: { resource_type: string; quantity: number }[] }
 interface Damage { id: number; lat: number; lng: number; reason: string | null; edge_geometry: any; reported_at: string }
-interface ReportRow { report_id: number; raw_text: string | null; status: string; created_at: string }
+interface ReportRow {
+  report_id: number;
+  raw_text: string | null;
+  status: string;
+  created_at: string;
+  structured_fields: {
+    location_name: string;
+    headcount: number;
+    severity: string | null;
+    needs: string[];
+  } | null;
+}
 interface DispatchRow { dispatch_id: number; site_id: number; depot_id: number; status: string; distance_km: number | null; eta_minutes: number | null; route_geojson: any; resources_loaded: any[] }
 interface Allocation { site_id: number; depot_id: number | null; rank: number; priority_score: number; resources: { resource_type: string; quantity: number }[]; reasoning: string }
 
@@ -42,6 +55,7 @@ type Sub = null | { name: 'newReport' } | { name: 'plan'; alloc: Allocation; sit
 
 export default function CoordinatorShell({ session, onLogout }: { session: LoginResponse; onLogout: () => void }) {
   const centerId = session.center_id;
+  const insets = useSafeAreaInsets();
   const [tab, setTab] = useState('home');
   const [sub, setSub] = useState<Sub>(null);
   const [key, setKey] = useState(0);
@@ -103,7 +117,7 @@ export default function CoordinatorShell({ session, onLogout }: { session: Login
       <View style={{ flex: 1 }}>
         {tab === 'home' && (
           <HomeTab centerId={centerId} sites={sites} reports={reports} dispatches={dispatches} depots={depots}
-                   onNewReport={() => setSub({ name: 'newReport' })} onDispatch={(alloc) => setSub({ name: 'plan', alloc, site: sites.find(s => s.id === alloc.site_id) })} />
+                   onNewReport={() => setSub({ name: 'newReport' })} onPendingReports={() => setTab('reports')} onDispatch={(alloc) => setSub({ name: 'plan', alloc, site: sites.find(s => s.id === alloc.site_id) })} />
         )}
         {tab === 'reports' && (
           <ReportsTab centerId={centerId} reports={reports} onNewReport={() => setSub({ name: 'newReport' })} refresh={refresh} />
@@ -127,15 +141,18 @@ export default function CoordinatorShell({ session, onLogout }: { session: Login
 
       <BottomNav tabs={NAV} active={tab} onChange={setTab} />
       {(tab === 'home' || tab === 'reports') &&
-        <Fab onPress={() => setSub({ name: 'newReport' })} />}
+        <Fab
+          onPress={() => setSub({ name: 'newReport' })}
+          bottomOffset={Math.max(10, insets.bottom) + 70 + 16}
+        />}
     </View>
   );
 }
 
 /* ================= HOME ================= */
-function HomeTab({ centerId, sites, reports, dispatches, depots, onNewReport, onDispatch }: {
+function HomeTab({ centerId, sites, reports, dispatches, depots, onNewReport, onPendingReports, onDispatch }: {
   centerId: number; sites: Site[]; reports: ReportRow[]; dispatches: DispatchRow[]; depots: Depot[];
-  onNewReport: () => void; onDispatch: (a: Allocation) => void;
+  onNewReport: () => void; onPendingReports: () => void; onDispatch: (a: Allocation) => void;
 }) {
   const [allocations, setAllocations] = useState<Allocation[] | null>(null);
   const [err, setErr] = useState<string | null>(null);
@@ -161,7 +178,7 @@ function HomeTab({ centerId, sites, reports, dispatches, depots, onNewReport, on
       <SectionTitle title="Operations Dashboard" />
 
       {pending > 0 && (
-        <Card barColor={C.critical} onPress={onNewReport}>
+        <Card barColor={C.critical} onPress={onPendingReports}>
           <View style={{ flexDirection: 'row', alignItems: 'center' }}>
             <Text style={{ fontSize: 26, marginRight: 12 }}>{'🚨'}</Text>
             <View style={{ flex: 1 }}>
@@ -272,7 +289,13 @@ function ReportsTab({ centerId, reports, onNewReport, refresh }: {
   };
 
   return (
-    <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: 16, paddingBottom: 100 }}>
+    <KeyboardAwareScrollView
+      style={{ flex: 1 }}
+      contentContainerStyle={{ padding: 16, paddingBottom: 100 }}
+      keyboardShouldPersistTaps="handled"
+      enableOnAndroid
+      extraScrollHeight={24}
+    >
       <SectionTitle title="Field Reports" sub={`${reports.length} total · ${reports.filter(r => r.status === 'pending_extraction').length} awaiting extraction`} />
       <Err msg={err} />
 
@@ -318,6 +341,22 @@ function ReportsTab({ centerId, reports, onNewReport, refresh }: {
               tone={r.status === 'pending_extraction' ? 'warning' : r.status === 'confirmed' ? 'ok' : 'info'} />
           </View>
           {r.raw_text && <Text style={[T.bodyMd, { color: C.onSurfaceVariant, marginTop: 6 }]} numberOfLines={2}>{r.raw_text}</Text>}
+          {!r.raw_text && r.structured_fields && (
+            <View style={{ marginTop: 6 }}>
+              <Text style={[T.bodyMd, { color: C.onSurface }]}>{r.structured_fields.location_name}</Text>
+              {r.structured_fields.severity && (
+                <Text style={[T.labelSm, { color: C.onSurfaceVariant, marginTop: 2 }]}>
+                  Severity: {r.structured_fields.severity.toUpperCase()}
+                  {r.structured_fields.headcount ? `  ·  ~${r.structured_fields.headcount} people` : ''}
+                </Text>
+              )}
+              {r.structured_fields.needs.length > 0 && (
+                <Text style={[T.labelSm, { color: C.onSurfaceVariant, marginTop: 2 }]}>
+                  Needs: {r.structured_fields.needs.join(', ')}
+                </Text>
+              )}
+            </View>
+          )}
           {r.status === 'pending_extraction' && r.raw_text && (
             <View style={{ marginTop: 8 }}>
               <Button title="Run AI Extraction" kind="outlined" onPress={() => extract(r.report_id)} icon="✦" />
@@ -332,9 +371,155 @@ function ReportsTab({ centerId, reports, onNewReport, refresh }: {
           </Text>
         </Card>
       )}
-    </ScrollView>
+    </KeyboardAwareScrollView>
   );
 }
+
+/* ================= PLACE SEARCH (Nominatim / OSM) ================= */
+/**
+ * Geocodes a free-text query using Nominatim (OpenStreetMap).
+ * No API key required — same data source as the map tiles.
+ * Results are shown as a dropdown list; selecting one calls onSelect
+ * with the lat/lng so the caller can fly the map there.
+ */
+interface NominatimResult {
+  place_id: number;
+  display_name: string;
+  lat: string;
+  lon: string;
+}
+
+function PlaceSearch({ onSelect }: {
+  onSelect: (lat: number, lng: number, label: string) => void;
+}) {
+  const [query, setQuery] = useState('');
+  const [results, setResults] = useState<NominatimResult[]>([]);
+  const [searching, setSearching] = useState(false);
+  const [searchErr, setSearchErr] = useState<string | null>(null);
+  const debounceTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const search = async (text: string) => {
+    if (!text.trim()) { setResults([]); return; }
+    setSearching(true);
+    setSearchErr(null);
+    try {
+      const url =
+        `https://nominatim.openstreetmap.org/search` +
+        `?q=${encodeURIComponent(text.trim())}` +
+        `&format=json&limit=5&addressdetails=0`;
+      const res = await fetch(url, {
+        headers: { 'Accept-Language': 'en', 'User-Agent': 'MADAD-FloodResponse/1.0' },
+      });
+      if (!res.ok) throw new Error(`Search failed (${res.status})`);
+      const data: NominatimResult[] = await res.json();
+      setResults(data);
+      if (data.length === 0) setSearchErr('No places found. Try a different name.');
+    } catch (e: any) {
+      setSearchErr('Search unavailable — check your connection.');
+      setResults([]);
+    } finally {
+      setSearching(false);
+    }
+  };
+
+  const handleChange = (text: string) => {
+    setQuery(text);
+    setResults([]);
+    setSearchErr(null);
+    if (debounceTimer.current) clearTimeout(debounceTimer.current);
+    if (text.trim().length >= 3) {
+      debounceTimer.current = setTimeout(() => search(text), 600);
+    }
+  };
+
+  const pick = (r: NominatimResult) => {
+    onSelect(parseFloat(r.lat), parseFloat(r.lon), r.display_name);
+    setQuery(r.display_name.split(',')[0]); // show short name in input
+    setResults([]);
+  };
+
+  return (
+    <View style={ps.wrap}>
+      <View style={ps.inputRow}>
+        <Text style={ps.icon}>🔍</Text>
+        <TextInput
+          style={ps.input}
+          value={query}
+          onChangeText={handleChange}
+          placeholder="Search road, area or landmark…"
+          placeholderTextColor={C.outline}
+          autoCapitalize="none"
+          autoCorrect={false}
+          returnKeyType="search"
+          onSubmitEditing={() => search(query)}
+          clearButtonMode="while-editing"
+        />
+        {searching && <ActivityIndicator size="small" color={C.primary} style={{ marginLeft: 8 }} />}
+      </View>
+
+      {searchErr && (
+        <Text style={ps.noResult}>{searchErr}</Text>
+      )}
+
+      {results.length > 0 && (
+        <View style={ps.dropdown}>
+          {results.map((r, i) => (
+            <Pressable
+              key={r.place_id}
+              onPress={() => pick(r)}
+              style={({ pressed }) => [
+                ps.resultRow,
+                i < results.length - 1 && ps.resultBorder,
+                pressed && { backgroundColor: C.surfaceHigh },
+              ]}
+            >
+              <Text style={ps.resultText} numberOfLines={2}>{r.display_name}</Text>
+            </Pressable>
+          ))}
+        </View>
+      )}
+    </View>
+  );
+}
+
+const ps = StyleSheet.create({
+  wrap: { marginTop: 12, marginBottom: 4 },
+  inputRow: {
+    flexDirection: 'row', alignItems: 'center',
+    backgroundColor: C.surfaceLowest,
+    borderWidth: 1, borderColor: C.outlineVariant,
+    borderRadius: RADIUS.md, paddingHorizontal: 12, minHeight: 48,
+  },
+  icon: { fontSize: 15, marginRight: 8, color: C.onSurfaceVariant },
+  input: { flex: 1, color: C.onSurface, fontSize: 15, paddingVertical: 10 },
+  noResult: {
+    ...T.labelSm,
+    color: C.onSurfaceVariant,
+    marginTop: 6,
+    marginLeft: 4,
+  },
+  dropdown: {
+    backgroundColor: C.surfaceLowest,
+    borderWidth: 1, borderColor: C.outlineVariant,
+    borderRadius: RADIUS.md,
+    marginTop: 4,
+    overflow: 'hidden',
+    elevation: 3,
+    shadowColor: '#000', shadowOpacity: 0.1, shadowRadius: 4,
+    shadowOffset: { width: 0, height: 2 },
+  },
+  resultRow: {
+    paddingHorizontal: 14, paddingVertical: 12,
+    backgroundColor: C.surfaceLowest,
+  },
+  resultBorder: {
+    borderBottomWidth: 1, borderBottomColor: C.surfaceVariant,
+  },
+  resultText: {
+    ...T.bodyMd,
+    color: C.onSurface,
+  },
+});
 
 /* ================= MAP ================= */
 function MapTab({ centerId, sites, depots, damaged, dispatches, refresh, onOpenRoute }: {
@@ -342,24 +527,149 @@ function MapTab({ centerId, sites, depots, damaged, dispatches, refresh, onOpenR
   dispatches: DispatchRow[]; refresh: () => void; onOpenRoute: (d: DispatchRow) => void;
 }) {
   const [layers, setLayers] = useState({ sites: true, depots: true, damage: true, routes: true });
-  const [flagging, setFlagging] = useState(false);
   const [reason, setReason] = useState('');
-  const [pending, setPending] = useState<{ lat: number; lng: number } | null>(null);
-  const [err, setErr] = useState<string | null>(null);
+  const [toast, setToast] = useState<{ kind: 'ok' | 'err'; msg: string } | null>(null);
+  const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  // Search result (yellow pin) — set when user picks a Nominatim result
+  const [searchPin, setSearchPin] = useState<{ lat: number; lng: number; label: string } | null>(null);
+  // Red mark — set when user taps map OR confirms yellow pin; triggers confirm panel
+  const [redMark, setRedMark] = useState<{ lat: number; lng: number } | null>(null);
+
+  const [myLocation, setMyLocation] = useState<{ lat: number; lng: number } | null>(null);
+  const [locating, setLocating] = useState(false);
+  const mapRef = useRef<LeafletMapHandle>(null);
+
+  /**
+   * Four-stage state machine (all derived from the above):
+   *   idle        – flagging=false, no marks
+   *   searching   – flagging=true,  redMark=null   (user searching / panning)
+   *   confirming  – flagging=true,  redMark≠null,  saving=false
+   *   saving      – flagging=true,  redMark≠null,  saving=true
+   */
+  const [flagging, setFlagging] = useState(false);
+  const [saving, setSaving] = useState(false);
+
+  const stage: 'idle' | 'searching' | 'confirming' | 'saving' =
+    !flagging ? 'idle'
+    : saving ? 'saving'
+    : redMark ? 'confirming'
+    : 'searching';
+
+  // ── GPS on mount ─────────────────────────────────────────────────────────
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const { status } = await Location.requestForegroundPermissionsAsync();
+        if (cancelled || status !== 'granted') return;
+        const pos = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
+        if (cancelled) return;
+        const loc = { lat: pos.coords.latitude, lng: pos.coords.longitude };
+        setMyLocation(loc);
+        mapRef.current?.flyTo(loc.lat, loc.lng, 13);
+      } catch { /* GPS unavailable — silent */ }
+    })();
+    return () => { cancelled = true; };
+  }, []);
+
+  const recenter = async () => {
+    setLocating(true);
+    try {
+      const { status } = await Location.requestForegroundPermissionsAsync();
+      if (status !== 'granted') return;
+      const pos = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.High });
+      const loc = { lat: pos.coords.latitude, lng: pos.coords.longitude };
+      setMyLocation(loc);
+      mapRef.current?.flyTo(loc.lat, loc.lng, 14);
+    } catch { /* silent */ } finally { setLocating(false); }
+  };
+
+  // ── Helpers ───────────────────────────────────────────────────────────────
+  const showToast = (kind: 'ok' | 'err', msg: string) => {
+    if (toastTimer.current) clearTimeout(toastTimer.current);
+    setToast({ kind, msg });
+    toastTimer.current = setTimeout(() => setToast(null), 5000);
+  };
+
+  const resetFlagging = () => {
+    setFlagging(false);
+    setRedMark(null);
+    setSearchPin(null);
+    setReason('');
+    setSaving(false);
+  };
+
+  // Called when user taps the map while in searching or confirming stage.
+  // In searching: places the red mark and moves to confirming.
+  // In confirming: moves the red mark to the new tap position.
+  const handleMapTap = (lat: number, lng: number) => {
+    if (stage === 'saving') return;
+    if (stage === 'searching' || stage === 'confirming') {
+      setRedMark({ lat, lng });
+      // Clear search pin once user has placed their own mark
+      setSearchPin(null);
+    }
+  };
+
+  // Called when user confirms the yellow search-pin ("Yes, this road")
+  const useSearchPin = () => {
+    if (!searchPin) return;
+    setRedMark({ lat: searchPin.lat, lng: searchPin.lng });
+    setSearchPin(null);
+  };
+
+  // Final submit — only called when stage === 'confirming'
+  const submitReport = async () => {
+    if (!redMark) return;
+    setSaving(true);
+    try {
+      await api('/roads/damage', {
+        method: 'POST',
+        body: { center_id: centerId, lat: redMark.lat, lng: redMark.lng, reason: reason || null },
+      });
+      resetFlagging();
+      refresh();
+      showToast('ok', '✓ Road blockage reported and saved to the server.');
+    } catch (e: any) {
+      setSaving(false);
+      showToast('err', `Report failed: ${e.message}`);
+    }
+  };
+
+  // ── Markers ───────────────────────────────────────────────────────────────
   const markers: LeafMarker[] = useMemo(() => [
     ...(layers.sites ? sites.map(site => ({
       id: `s${site.id}`, lat: site.lat, lng: site.lng,
       title: site.location_name,
       snippet: `~${site.estimated_population} people · ${site.status}`,
-      color: SEVERITY_COLORS[site.severity ?? 'low'] ?? C.primary,
+      color: '#E65100',  // deep orange — colorblind-safe, distinct from blue
+      label: 'R',
     })) : []),
     ...(layers.depots ? depots.map(d => ({
       id: `d${d.id}`, lat: d.lat, lng: d.lng, title: d.name, snippet: 'Depot',
-      color: C.secondary, icon: 'dot' as const,
+      color: '#1565C0',  // strong blue — safe contrast against orange
+      label: 'D',
     })) : []),
-    ...(pending ? [{ id: 'pending', lat: pending.lat, lng: pending.lng, title: 'Damage here?', color: C.critical }] : []),
-  ], [sites, depots, layers, pending]);
+    ...(myLocation ? [{
+      id: 'me', lat: myLocation.lat, lng: myLocation.lng,
+      title: 'My location', color: C.tertiary, icon: 'dot' as const,
+    }] : []),
+    // Yellow search pin — shows where Nominatim found the place
+    ...(searchPin ? [{
+      id: 'search', lat: searchPin.lat, lng: searchPin.lng,
+      title: searchPin.label,
+      snippet: 'Tap "Yes, this road" to mark it, or tap the map for a precise point',
+      color: C.warning,
+    }] : []),
+    // Red mark — the confirmed blockage location, waiting for submit
+    ...(redMark ? [{
+      id: 'redmark', lat: redMark.lat, lng: redMark.lng,
+      title: '🔴 Blockage marked here',
+      snippet: saving ? 'Reporting…' : 'Tap "Confirm & Report" to submit, or "Clear mark" to redo',
+      color: C.critical,
+    }] : []),
+  ], [sites, depots, layers, myLocation, searchPin, redMark, saving]);
 
   const polylines: LeafPolyline[] = useMemo(() => [
     ...(layers.damage ? damaged.flatMap(dg =>
@@ -373,61 +683,162 @@ function MapTab({ centerId, sites, depots, damaged, dispatches, refresh, onOpenR
     })) : []),
   ], [damaged, dispatches, layers]);
 
-  const flagDamageOnTap = async (lat: number, lng: number) => {
-    setErr(null);
-    setPending({ lat, lng });
-    try {
-      await api('/roads/damage', { method: 'POST',
-        body: { center_id: centerId, lat, lng, reason: reason || null } });
-      setPending(null); setFlagging(false); setReason(''); refresh();
-    } catch (e: any) { setErr(e.message); }
-  };
+  const activeDispatches = dispatches.filter(d => d.status === 'en_route');
 
-  const active = dispatches.filter(d => d.status === 'en_route');
-
+  // ── Render ────────────────────────────────────────────────────────────────
   return (
     <View style={{ flex: 1 }}>
-      <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: 16, paddingBottom: 40 }}>
+      {/* Map fills all available space above the controls panel */}
+      <View style={{ flex: 1, position: 'relative', minHeight: 200 }}>
         <LeafletMap
-          height={360}
-          fit
-          center={{ lat: 29.85, lng: 70.45 }}
-          zoom={8}
+          ref={mapRef}
           markers={markers}
           polylines={polylines}
-          onMapPress={(lat, lng) => { if (flagging) flagDamageOnTap(lat, lng); }}
+          fit={markers.length > 0 || polylines.length > 0}
+          onMapPress={handleMapTap}
         />
+        {/* Locate-me overlay */}
+        <Pressable
+          onPress={recenter}
+          disabled={locating || stage === 'saving'}
+          style={({ pressed }) => [mt.locateBtn, pressed && { opacity: 0.8 }, locating && { opacity: 0.5 }]}
+          accessibilityLabel="Center map on my location"
+        >
+          <Text style={mt.locateIcon}>{locating ? '…' : '◎'}</Text>
+        </Pressable>
+      </View>
 
-        {/* Layers card */}
+      {/* Controls panel — fixed height so map always gets the majority of space */}
+      <KeyboardAwareScrollView
+        style={{ maxHeight: 340 }}
+        contentContainerStyle={{ padding: 16, paddingBottom: 40 }}
+        keyboardShouldPersistTaps="handled"
+        enableOnAndroid
+        extraScrollHeight={24}
+        nestedScrollEnabled
+      >
+
+        {/* Layer toggles — always visible */}
         <Card>
           <Text style={[T.titleLg, { color: C.onSurface }]}>Map Layers</Text>
           <View style={{ flexDirection: 'row', flexWrap: 'wrap', marginTop: 10 }}>
-            <Chip label="Relief Sites" selected={layers.sites} color={C.primary} onPress={() => setLayers(l => ({ ...l, sites: !l.sites }))} />
-            <Chip label="Depots" selected={layers.depots} color={C.secondary} onPress={() => setLayers(l => ({ ...l, depots: !l.depots }))} />
+            <Chip label="Relief Sites" selected={layers.sites} color='#E65100' onPress={() => setLayers(l => ({ ...l, sites: !l.sites }))} />
+            <Chip label="Depots" selected={layers.depots} color='#1565C0' onPress={() => setLayers(l => ({ ...l, depots: !l.depots }))} />
             <Chip label="Road Damage" selected={layers.damage} color={C.critical} onPress={() => setLayers(l => ({ ...l, damage: !l.damage }))} />
             <Chip label="Routes" selected={layers.routes} color={C.primaryFixedDim} onPress={() => setLayers(l => ({ ...l, routes: !l.routes }))} />
           </View>
         </Card>
 
-        <Err msg={err} />
-        {flagging && (
-          <Card barColor={C.critical}>
-            <Text style={[T.titleLg, { color: C.critical }]}>Flag Road Damage</Text>
-            <Text style={[T.bodyMd, { color: C.onSurfaceVariant, marginTop: 4 }]}>Tap the map to mark the severed segment.</Text>
-            <View style={{ marginTop: 8 }} />
-            <Field label="Reason (optional)" value={reason} onChangeText={setReason} placeholder="Bridge flooded" />
-            <Button title="Cancel" kind="outlined" onPress={() => { setFlagging(false); setPending(null); }} />
+        {/* Toast feedback */}
+        {toast && (
+          <View style={[mt.toast, toast.kind === 'ok' ? mt.toastOk : mt.toastErr]}>
+            <Text style={mt.toastText}>{toast.msg}</Text>
+          </View>
+        )}
+
+        {/* ── STAGE: searching ── */}
+        {stage === 'searching' && (
+          <Card barColor={C.warning}>
+            <Text style={[T.titleLg, { color: C.onSurface }]}>Report Road Blockage</Text>
+            <Text style={[T.bodyMd, { color: C.onSurfaceVariant, marginTop: 4 }]}>
+              Search for the blocked road by name, or tap any point on the map to drop a red mark.
+            </Text>
+
+            <PlaceSearch
+              onSelect={(lat, lng, label) => {
+                setSearchPin({ lat, lng, label });
+                mapRef.current?.flyTo(lat, lng, 15);
+              }}
+            />
+
+            {/* Yellow pin confirmation row */}
+            {searchPin && (
+              <View style={mt.yellowConfirm}>
+                <Text style={mt.yellowConfirmTitle}>📍 {searchPin.label.split(',')[0]}</Text>
+                <Text style={[T.labelSm, { color: C.onSurfaceVariant, marginTop: 2, marginBottom: 10 }]}>
+                  Is this the road you meant? Tap below to mark it, or tap a different point on the map.
+                </Text>
+                <View style={{ flexDirection: 'row', gap: 8 }}>
+                  <View style={{ flex: 1 }}>
+                    <Button title="Yes, mark this road" kind="primary" onPress={useSearchPin} />
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Button title="Clear" kind="outlined" onPress={() => setSearchPin(null)} />
+                  </View>
+                </View>
+              </View>
+            )}
+
+            <View style={{ marginTop: 4 }}>
+              <Button title="Cancel" kind="text" onPress={resetFlagging} />
+            </View>
           </Card>
         )}
-        <Button title={flagging ? 'Tap map to flag…' : 'Report Road Blockage'} kind="critical" icon="⚠"
-                onPress={() => setFlagging(f => !f)} />
 
-        {/* Active routes list */}
-        {active.length > 0 && (
+        {/* ── STAGE: confirming ── */}
+        {stage === 'confirming' && (
+          <Card barColor={C.critical}>
+            <View style={mt.confirmHeader}>
+              <View style={mt.redDot} />
+              <Text style={[T.titleLg, { color: C.onSurface, flex: 1 }]}>Red mark placed</Text>
+            </View>
+            <Text style={[T.bodyMd, { color: C.onSurfaceVariant, marginTop: 4 }]}>
+              The red pin shows where the blockage will be reported. If it's wrong, tap "Clear mark" and re-tap the correct spot, or search again.
+            </Text>
+
+            <View style={mt.coordRow}>
+              <Text style={[T.labelSm, { color: C.onSurfaceVariant }]}>
+                📍 {redMark!.lat.toFixed(5)}, {redMark!.lng.toFixed(5)}
+              </Text>
+            </View>
+
+            <Field
+              label="Reason (optional)"
+              value={reason}
+              onChangeText={setReason}
+              placeholder="e.g. Bridge flooded, Road washed out"
+              returnKeyType="done"
+              autoCapitalize="sentences"
+            />
+
+            <Button title="Confirm & Report" kind="critical" icon="➤" onPress={submitReport} />
+            <Button
+              title="Clear mark — redo"
+              kind="outlined"
+              onPress={() => { setRedMark(null); setSearchPin(null); }}
+            />
+            <Button title="Cancel entirely" kind="text" onPress={resetFlagging} />
+          </Card>
+        )}
+
+        {/* ── STAGE: saving ── */}
+        {stage === 'saving' && (
+          <Card barColor={C.critical}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+              <ActivityIndicator color={C.critical} />
+              <Text style={[T.bodyMd, { color: C.onSurfaceVariant, flex: 1 }]}>
+                Sending report to server…
+              </Text>
+            </View>
+          </Card>
+        )}
+
+        {/* Report Road Blockage entry button — only visible when idle */}
+        {stage === 'idle' && (
+          <Button
+            title="Report Road Blockage"
+            kind="critical"
+            icon="⚠"
+            onPress={() => setFlagging(true)}
+          />
+        )}
+
+        {/* Active dispatch routes */}
+        {activeDispatches.length > 0 && (
           <>
             <View style={{ height: 12 }} />
             <Text style={[T.titleLg, { color: C.onSurface, marginBottom: 8 }]}>Active Routes</Text>
-            {active.map(d => (
+            {activeDispatches.map(d => (
               <Card key={d.dispatch_id} barColor={C.primary} onPress={() => onOpenRoute(d)}>
                 <Text style={[T.titleLg, { color: C.onSurface }]}>Dispatch #{d.dispatch_id}</Text>
                 <Text style={[T.bodyMd, { color: C.onSurfaceVariant }]}>
@@ -438,7 +849,7 @@ function MapTab({ centerId, sites, depots, damaged, dispatches, refresh, onOpenR
             ))}
           </>
         )}
-      </ScrollView>
+      </KeyboardAwareScrollView>
     </View>
   );
 }
@@ -452,10 +863,59 @@ function NewReportScreen({ centerId, onBack }: { centerId: number; onBack: () =>
   // free text
   const [rawText, setRawText] = useState('');
   // structured
-  const [locName, setLocName] = useState(''); const [lat, setLat] = useState(''); const [lng, setLng] = useState('');
-  const [headcount, setHeadcount] = useState(''); const [severity, setSeverity] = useState('Medium');
+  const [locName, setLocName] = useState('');
+  const [lat, setLat] = useState('');
+  const [lng, setLng] = useState('');
+  const [headcount, setHeadcount] = useState('');
+  const [severity, setSeverity] = useState('Medium');
   const [needs, setNeeds] = useState<string[]>([]);
   const [flags, setFlags] = useState<string[]>([]);
+
+  const [geocoding, setGeocoding] = useState(false); // true while name→coords lookup running
+  const mapRef = useRef<LeafletMapHandle>(null);
+  const nameGeoTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // ── Fly to coordinates whenever both lat & lng become valid ──────────────
+  useEffect(() => {
+    const la = parseFloat(lat);
+    const lo = parseFloat(lng);
+    if (!isNaN(la) && !isNaN(lo) && la >= -90 && la <= 90 && lo >= -180 && lo <= 180) {
+      mapRef.current?.flyTo(la, lo, 14);
+    }
+  }, [lat, lng]);
+
+  // ── Geocode location name when coords are absent ─────────────────────────
+  // Debounced: fires 700ms after the user stops typing in the name field.
+  // If a result is found it auto-fills lat/lng (which in turn triggers flyTo above).
+  useEffect(() => {
+    if (nameGeoTimer.current) clearTimeout(nameGeoTimer.current);
+    const trimmed = locName.trim();
+    // Only geocode if name has substance AND coords are not already set
+    if (trimmed.length < 3 || (lat && lng)) return;
+
+    nameGeoTimer.current = setTimeout(async () => {
+      setGeocoding(true);
+      try {
+        const url =
+          `https://nominatim.openstreetmap.org/search` +
+          `?q=${encodeURIComponent(trimmed)}&format=json&limit=1`;
+        const res = await fetch(url, {
+          headers: { 'Accept-Language': 'en', 'User-Agent': 'MADAD-FloodResponse/1.0' },
+        });
+        const data = await res.json();
+        if (data.length > 0) {
+          const r = data[0];
+          setLat(parseFloat(r.lat).toFixed(6));
+          setLng(parseFloat(r.lon).toFixed(6));
+          // flyTo triggered by the lat/lng effect above
+        }
+      } catch { /* silent — user can enter coords manually */ } finally {
+        setGeocoding(false);
+      }
+    }, 700);
+
+    return () => { if (nameGeoTimer.current) clearTimeout(nameGeoTimer.current); };
+  }, [locName]); // intentionally exclude lat/lng to avoid re-running when we set them
 
   const useCurrent = async () => {
     setErr(null);
@@ -486,22 +946,73 @@ function NewReportScreen({ centerId, onBack }: { centerId: number; onBack: () =>
     } catch (e: any) { setErr(e.message); } finally { setBusy(false); }
   };
 
+  // Derived: do we have a valid coordinate pair to show a pin?
+  const parsedLat = parseFloat(lat);
+  const parsedLng = parseFloat(lng);
+  const hasCoords = !isNaN(parsedLat) && !isNaN(parsedLng);
+
   return (
     <View style={{ flex: 1, backgroundColor: C.background }}>
       <AppBar title="MADAD" onBack={onBack} />
-      <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: 16, paddingBottom: 40 }}>
+
+      {/* ── Location preview map — always outside ScrollView ── */}
+      {mode === 'form' && (
+        <View style={ns.previewMapWrap}>
+          {/* Map is always mounted so mapRef stays valid for flyTo calls */}
+          <LeafletMap
+            ref={mapRef}
+            height={180}
+            markers={hasCoords ? [{
+              id: 'loc',
+              lat: parsedLat,
+              lng: parsedLng,
+              title: locName || 'Incident location',
+              color: C.primary,
+            }] : []}
+          />
+
+          {/* Status badge overlaid bottom-left */}
+          <View style={ns.previewOverlay} pointerEvents="none">
+            <View style={[ns.previewBadge, geocoding && { backgroundColor: 'rgba(0,80,150,0.7)' }]}>
+              <Text style={ns.previewBadgeText}>
+                {geocoding
+                  ? '🔍 Looking up location…'
+                  : hasCoords
+                    ? `📍 ${locName || `${parsedLat.toFixed(4)}, ${parsedLng.toFixed(4)}`}`
+                    : '🗺 Enter a name or coordinates below'}
+              </Text>
+            </View>
+          </View>
+        </View>
+      )}
+
+      <KeyboardAwareScrollView
+        style={{ flex: 1 }}
+        contentContainerStyle={{ padding: 16, paddingBottom: 40 }}
+        keyboardShouldPersistTaps="handled"
+        enableOnAndroid
+        extraScrollHeight={24}
+      >
         <SectionTitle title="New Report" sub="Report a situation on the ground — as free text or a structured form." />
 
         {/* segmented control */}
         <View style={ns.segment}>
-          <View style={[ns.segItem, mode === 'text' && ns.segOn]}>
-            <Text style={[T.labelLg, { color: mode === 'text' ? C.onPrimary : C.onSurfaceVariant }]}
-                  onPress={() => setMode('text')}>Free Text</Text>
-          </View>
-          <View style={[ns.segItem, mode === 'form' && ns.segOn]}>
-            <Text style={[T.labelLg, { color: mode === 'form' ? C.onPrimary : C.onSurfaceVariant }]}
-                  onPress={() => setMode('form')}>Structured Form</Text>
-          </View>
+          <Pressable
+            style={[ns.segItem, mode === 'text' && ns.segOn]}
+            onPress={() => setMode('text')}
+            accessibilityRole="tab"
+            accessibilityState={{ selected: mode === 'text' }}
+          >
+            <Text style={[ns.segLabel, mode === 'text' && ns.segLabelOn]}>✏ Free Text</Text>
+          </Pressable>
+          <Pressable
+            style={[ns.segItem, mode === 'form' && ns.segOn]}
+            onPress={() => setMode('form')}
+            accessibilityRole="tab"
+            accessibilityState={{ selected: mode === 'form' }}
+          >
+            <Text style={[ns.segLabel, mode === 'form' && ns.segLabelOn]}>⊟ Structured Form</Text>
+          </Pressable>
         </View>
 
         <Err msg={err} />
@@ -535,12 +1046,27 @@ function NewReportScreen({ centerId, onBack }: { centerId: number; onBack: () =>
                   <Field value={lng} onChangeText={setLng} placeholder="Longitude" keyboardType="decimal-pad" />
                 </View>
               </View>
-              {lat && lng ? (
-                <View style={ns.miniMap}>
-                  <LeafletMap height={140} markers={[{ id: 'loc', lat: parseFloat(lat), lng: parseFloat(lng), title: locName || 'Incident', color: C.primary }]} />
+              {hasCoords ? (
+                <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 4 }}>
+                  <Text style={[T.labelSm, { color: C.tertiary, flex: 1 }]}>
+                    ✓ {geocoding ? 'Updating…' : 'Location set — map updated above'}
+                  </Text>
+                  <Pressable onPress={() => { setLat(''); setLng(''); }} hitSlop={8}>
+                    <Text style={[T.labelSm, { color: C.outline }]}>Clear</Text>
+                  </Pressable>
                 </View>
               ) : (
-                <Button title="Use Current Location" kind="outlined" onPress={useCurrent} icon="◎" />
+                <View>
+                  {geocoding && (
+                    <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 8, gap: 8 }}>
+                      <ActivityIndicator size="small" color={C.primary} />
+                      <Text style={[T.labelSm, { color: C.onSurfaceVariant }]}>
+                        Looking up "{locName}"…
+                      </Text>
+                    </View>
+                  )}
+                  <Button title="Use Current Location" kind="outlined" onPress={useCurrent} icon="◎" />
+                </View>
               )}
             </Card>
 
@@ -585,7 +1111,7 @@ function NewReportScreen({ centerId, onBack }: { centerId: number; onBack: () =>
 
         <Button title={busy ? 'Submitting…' : 'Submit Report'} onPress={submit} icon="➤"
                 disabled={busy || (mode === 'text' ? !rawText : !locName)} />
-      </ScrollView>
+      </KeyboardAwareScrollView>
     </View>
   );
 }
@@ -741,24 +1267,30 @@ function ActiveRouteScreen({ centerId, dispatchRow, sites, onBack }: {
     <View style={{ flex: 1, backgroundColor: C.background }}>
       <AppBar title="Active Route" onBack={onBack} />
       <View style={{ flex: 1 }}>
-        <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 40 }}>
+        {/* Map lives outside the ScrollView so touch events aren't stolen */}
+        {routeLine?.coordinates?.length > 1 && (
+          <LeafletMap
+            height={240}
+            fit
+            markers={[
+              ...(coords ? [{ id: 'me', lat: coords.lat, lng: coords.lng, title: 'My position', color: C.secondary, icon: 'dot' as const }] : []),
+              { id: 'dst', lat: routeLine.coordinates[routeLine.coordinates.length - 1][1],
+                lng: routeLine.coordinates[routeLine.coordinates.length - 1][0],
+                title: site?.location_name ?? 'Destination', color: C.primary },
+            ]}
+            polylines={[{ id: 'route',
+                          coords: routeLine.coordinates.map((c: number[]) => ({ lat: c[1], lng: c[0] })),
+                          color: C.tertiary, width: 5 }]}
+          />
+        )}
+        <KeyboardAwareScrollView
+          contentContainerStyle={{ padding: 16, paddingBottom: 40 }}
+          keyboardShouldPersistTaps="handled"
+          enableOnAndroid
+          extraScrollHeight={24}
+          nestedScrollEnabled
+        >
           <Err msg={err} />
-
-          {routeLine?.coordinates?.length > 1 && (
-            <LeafletMap
-              height={240}
-              fit
-              markers={[
-                ...(coords ? [{ id: 'me', lat: coords.lat, lng: coords.lng, title: 'My position', color: C.secondary, icon: 'dot' as const }] : []),
-                { id: 'dst', lat: routeLine.coordinates[routeLine.coordinates.length - 1][1],
-                  lng: routeLine.coordinates[routeLine.coordinates.length - 1][0],
-                  title: site?.location_name ?? 'Destination', color: C.primary },
-              ]}
-              polylines={[{ id: 'route',
-                            coords: routeLine.coordinates.map((c: number[]) => ({ lat: c[1], lng: c[0] })),
-                            color: C.tertiary, width: 5 }]}
-            />
-          )}
 
           {flagged && !route && (
             <Card barColor={C.critical}>
@@ -811,7 +1343,7 @@ function ActiveRouteScreen({ centerId, dispatchRow, sites, onBack }: {
           <Field label="Damage reason (optional)" value={reason} onChangeText={setReason} placeholder="Road flooded" />
           <Button title="Report Road Damage" kind="outlined" onPress={flagHere} icon="⚠" disabled={!coords} />
           <Button title="Mark as Delivered" onPress={markDelivered} icon="✓" />
-        </ScrollView>
+        </KeyboardAwareScrollView>
       </View>
     </View>
   );
@@ -833,11 +1365,59 @@ const hs = StyleSheet.create({
 
 const ns = StyleSheet.create({
   segment: {
-    flexDirection: 'row', backgroundColor: C.surfaceContainer, borderRadius: 12, padding: 4, marginBottom: 16,
+    flexDirection: 'row',
+    backgroundColor: C.surfaceContainer,
+    borderRadius: RADIUS.md,
+    padding: 3,
+    marginBottom: 20,
+    // subtle border so the track is visible on white backgrounds
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: C.outlineVariant,
   },
-  segItem: { flex: 1, alignItems: 'center', paddingVertical: 10, borderRadius: 10 },
-  segOn: { backgroundColor: C.primary },
+  segItem: {
+    flex: 1,
+    alignItems: 'center',
+    paddingVertical: 10,
+    borderRadius: RADIUS.md - 3, // inset by the padding so it sits flush
+  },
+  segOn: {
+    backgroundColor: C.surfaceLowest,
+    // elevation/shadow gives the active pill a lifted look
+    elevation: 2,
+    shadowColor: '#000',
+    shadowOpacity: 0.10,
+    shadowRadius: 4,
+    shadowOffset: { width: 0, height: 1 },
+  },
+  segLabel: {
+    ...T.labelLg,
+    color: C.onSurfaceVariant,
+  },
+  segLabelOn: {
+    color: C.primary,
+    fontWeight: '700' as const,
+  },
   miniMap: { borderRadius: 12, overflow: 'hidden', marginTop: 4 },
+  previewMapWrap: {
+    position: 'relative',
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: C.outlineVariant,
+  },
+  previewOverlay: {
+    position: 'absolute',
+    top: 8, left: 8,
+  },
+  previewBadge: {
+    backgroundColor: 'rgba(0,0,0,0.45)',
+    borderRadius: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+  },
+  previewBadgeText: {
+    color: '#fff',
+    fontSize: 12,
+    fontWeight: '600' as const,
+  },
   flagRow: {
     flexDirection: 'row', alignItems: 'center', paddingVertical: 10,
     borderBottomWidth: 1, borderBottomColor: C.surfaceVariant,
@@ -853,5 +1433,75 @@ const ns = StyleSheet.create({
   etaTile: {
     flex: 1, backgroundColor: C.surfaceLow, borderRadius: 12, padding: 12,
     alignItems: 'center',
+  },
+});
+
+const mt = StyleSheet.create({
+  locateBtn: {
+    position: 'absolute', bottom: 12, right: 12,
+    width: 44, height: 44, borderRadius: 22,
+    backgroundColor: C.surfaceLowest,
+    alignItems: 'center', justifyContent: 'center',
+    elevation: 4,
+    shadowColor: '#000', shadowOpacity: 0.18, shadowRadius: 6,
+    shadowOffset: { width: 0, height: 2 },
+  },
+  locateIcon: { fontSize: 22, color: C.primary },
+
+  yellowConfirm: {
+    backgroundColor: C.warningContainer,
+    borderRadius: RADIUS.md,
+    padding: 12,
+    marginTop: 10,
+    marginBottom: 4,
+  },
+  yellowConfirmTitle: {
+    ...T.labelLg,
+    color: C.onSurface,
+    fontWeight: '700' as const,
+  },
+
+  confirmHeader: {
+    flexDirection: 'row' as const,
+    alignItems: 'center' as const,
+    gap: 10,
+    marginBottom: 4,
+  },
+  redDot: {
+    width: 14, height: 14, borderRadius: 7,
+    backgroundColor: C.critical,
+    flexShrink: 0,
+  },
+  coordRow: {
+    backgroundColor: C.surfaceLow,
+    borderRadius: RADIUS.sm,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    marginBottom: 12,
+    marginTop: 8,
+  },
+
+  // Toast feedback banner
+  toast: {
+    borderRadius: RADIUS.md,
+    padding: 14,
+    marginBottom: 12,
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+  },
+  toastOk: {
+    backgroundColor: C.tertiaryFixed,       // green tint
+    borderLeftWidth: 4,
+    borderLeftColor: C.tertiary,
+  },
+  toastErr: {
+    backgroundColor: C.errorContainer,      // red tint
+    borderLeftWidth: 4,
+    borderLeftColor: C.error,
+  },
+  toastText: {
+    ...T.labelLg,
+    color: C.onSurface,
+    flexShrink: 1,
   },
 });

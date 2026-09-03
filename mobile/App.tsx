@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { StatusBar } from 'react-native';
+import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { loadStoredToken, setToken, LoginResponse } from './src/api';
 import OnboardingScreen from './src/screens/OnboardingScreen';
 import LoginScreen from './src/screens/LoginScreen';
@@ -25,7 +26,7 @@ export default function App() {
   if (session === 'loading') return null;
 
   return (
-    <>
+    <SafeAreaProvider>
       <StatusBar barStyle="dark-content" backgroundColor={C.background} />
       {session === 'onboarding'
         ? <OnboardingScreen onDone={() => setSession(null)} />
@@ -34,6 +35,6 @@ export default function App() {
           : session.role === 'administrator'
             ? <AdminShell session={session} onLogout={logout} />
             : <CoordinatorShell session={session} onLogout={logout} />}
-    </>
+    </SafeAreaProvider>
   );
 }

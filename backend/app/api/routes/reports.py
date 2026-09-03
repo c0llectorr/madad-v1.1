@@ -123,5 +123,20 @@ def list_reports(center_id: int | None = None, status: str | None = None,
         q = q.filter(Report.center_id == center_id)
     if status:
         q = q.filter(Report.status == status)
-    return [{"report_id": r.id, "raw_text": r.raw_text, "status": r.status,
-             "created_at": r.created_at} for r in q.order_by(Report.created_at.desc()).all()]
+
+    rows = []
+    for r in q.order_by(Report.created_at.desc()).all():
+        site = db.query(Site).filter(Site.report_id == r.id).first()
+        rows.append({
+            "report_id": r.id,
+            "raw_text": r.raw_text,
+            "status": r.status,
+            "created_at": r.created_at,
+            "structured_fields": {
+                "location_name": site.location_name,
+                "headcount": site.estimated_population,
+                "severity": site.severity,
+                "needs": site.needs or [],
+            } if site else None,
+        })
+    return rows
