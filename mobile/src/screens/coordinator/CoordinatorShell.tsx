@@ -643,11 +643,13 @@ function MapTab({ centerId, sites, depots, damaged, dispatches, refresh, onOpenR
       id: `s${site.id}`, lat: site.lat, lng: site.lng,
       title: site.location_name,
       snippet: `~${site.estimated_population} people · ${site.status}`,
-      color: SEVERITY_COLORS[site.severity ?? 'low'] ?? C.primary,
+      color: '#E65100',  // deep orange — colorblind-safe, distinct from blue
+      label: 'R',
     })) : []),
     ...(layers.depots ? depots.map(d => ({
       id: `d${d.id}`, lat: d.lat, lng: d.lng, title: d.name, snippet: 'Depot',
-      color: C.secondary, icon: 'dot' as const,
+      color: '#1565C0',  // strong blue — safe contrast against orange
+      label: 'D',
     })) : []),
     ...(myLocation ? [{
       id: 'me', lat: myLocation.lat, lng: myLocation.lng,
@@ -720,8 +722,8 @@ function MapTab({ centerId, sites, depots, damaged, dispatches, refresh, onOpenR
         <Card>
           <Text style={[T.titleLg, { color: C.onSurface }]}>Map Layers</Text>
           <View style={{ flexDirection: 'row', flexWrap: 'wrap', marginTop: 10 }}>
-            <Chip label="Relief Sites" selected={layers.sites} color={C.primary} onPress={() => setLayers(l => ({ ...l, sites: !l.sites }))} />
-            <Chip label="Depots" selected={layers.depots} color={C.secondary} onPress={() => setLayers(l => ({ ...l, depots: !l.depots }))} />
+            <Chip label="Relief Sites" selected={layers.sites} color='#E65100' onPress={() => setLayers(l => ({ ...l, sites: !l.sites }))} />
+            <Chip label="Depots" selected={layers.depots} color='#1565C0' onPress={() => setLayers(l => ({ ...l, depots: !l.depots }))} />
             <Chip label="Road Damage" selected={layers.damage} color={C.critical} onPress={() => setLayers(l => ({ ...l, damage: !l.damage }))} />
             <Chip label="Routes" selected={layers.routes} color={C.primaryFixedDim} onPress={() => setLayers(l => ({ ...l, routes: !l.routes }))} />
           </View>

@@ -10,6 +10,7 @@ export interface LeafMarker {
   snippet?: string;
   color?: string;   // pin color, CSS
   icon?: 'pin' | 'dot';
+  label?: string;   // single character shown inside the pin
 }
 
 export interface LeafPolyline {
@@ -43,6 +44,18 @@ const HTML = `<!DOCTYPE html>
     border: 2px solid #fff; box-shadow: 1px 2px 4px rgba(0,0,0,0.35);
   }
   .madad-pin div, .madad-dot div { transform: rotate(45deg); }
+  .madad-pin-label {
+    width: 28px; height: 28px; border-radius: 50% 50% 50% 0;
+    transform: rotate(-45deg); border: 2.5px solid #fff;
+    box-shadow: 1px 2px 5px rgba(0,0,0,0.4);
+    display: flex; align-items: center; justify-content: center;
+  }
+  .madad-pin-label span {
+    transform: rotate(45deg);
+    color: #fff; font-size: 11px; font-weight: 700;
+    font-family: sans-serif; line-height: 1;
+    text-shadow: 0 1px 2px rgba(0,0,0,0.4);
+  }
   .leaflet-popup-content-wrapper { border-radius: 8px; }
 </style>
 </head>
@@ -65,7 +78,17 @@ const HTML = `<!DOCTYPE html>
   var layers = { markers: L.layerGroup().addTo(map), lines: L.layerGroup().addTo(map) };
   var allPts = [];
 
-  function pinIcon(color, kind) {
+  function pinIcon(color, kind, label) {
+    if (label) {
+      return L.divIcon({
+        className: '',
+        html: '<div class="madad-pin-label" style="background:' + color + '">' +
+              '<span>' + label + '</span></div>',
+        iconSize: [28, 28],
+        iconAnchor: [14, 26],
+        popupAnchor: [0, -24]
+      });
+    }
     return L.divIcon({
       className: '',
       html: '<div class="' + (kind === 'dot' ? 'madad-dot' : 'madad-pin') +
@@ -98,7 +121,7 @@ const HTML = `<!DOCTYPE html>
       }
     });
     (payload.markers || []).forEach(function (m) {
-      var marker = L.marker([m.lat, m.lng], { icon: pinIcon(m.color || '#118AB2', m.icon || 'pin') })
+      var marker = L.marker([m.lat, m.lng], { icon: pinIcon(m.color || '#118AB2', m.icon || 'pin', m.label || '') })
         .bindPopup('<b>' + (m.title || '') + '</b>' + (m.snippet ? '<br>' + m.snippet : ''));
       marker.addTo(layers.markers);
       pts.push([m.lat, m.lng]);
