@@ -1,7 +1,7 @@
 // Shared TypeScript contracts — single source of truth for all screens.
 export interface LoginResponse {
   access_token: string;
-  role: 'administrator' | 'coordinator';
+  role: 'administrator' | 'coordinator' | 'driver';
   user_id: number;
   center_id: number | null;
   center_name: string | null;
@@ -22,7 +22,16 @@ export interface ReportRow {
   created_at: string;
   structured_fields?: { location_name: string; headcount: number; severity?: string; needs: string[] } | null;
 }
-export interface DispatchRow { dispatch_id: number; site_id: number; depot_id: number; status: string; distance_km: number | null; eta_minutes: number | null; route_geojson: any; resources_loaded: any[]; assigned_to?: number | null }
+export interface DispatchRow { dispatch_id: number; site_id: number; depot_id: number; status: string; distance_km: number | null; eta_minutes: number | null; route_geojson: any; resources_loaded: any[]; assigned_to?: number | null; driver_id?: number | null; plan_id?: number | null; dispatched_by?: number | null }
+export interface PlanT {
+  plan_id: number; site_id: number; center_id: number; status: 'draft' | 'finalized' | 'assigned';
+  source: string; reasoning: string | null;
+  site_name: string | null; site_lat: number | null; site_lng: number | null;
+  estimated_population: number;
+  items: { resource_type: string; quantity: number }[];
+  created_at?: string;
+}
+export interface DriverRow { driver_id: number; user_id: number; username: string; depot_id: number; depot_name: string; center_id: number; status: string }
 export interface Allocation { site_id: number; depot_id: number | null; rank: number; priority_score: number; resources: { resource_type: string; quantity: number }[]; reasoning: string }
 export interface SiteRow extends Site { center_id: number }
 export interface DamageRow extends Damage { center_id: number }

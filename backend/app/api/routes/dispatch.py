@@ -69,10 +69,14 @@ async def create_dispatch(payload: DispatchCreate, db: Session = Depends(get_db)
 
 @router.patch("/{dispatch_id}/status")
 def update_status(dispatch_id: int, payload: DispatchStatusUpdate, db: Session = Depends(get_db),
-                  user: dict = Depends(require_role("coordinator"))):
+                  user: dict = Depends(require_role("coordinator", "driver"))):
     dispatch = db.query(Dispatch).get(dispatch_id)
     if not dispatch:
         raise HTTPException(status_code=404, detail="Dispatch not found")
+    if user["role"] == "driver":
+        driver = db.query(Driver).filter(Driver.user_id == user["user_id"]).first()
+        if not driver or dispatch.driver_id != driver.id:
+            raise HTTPException(status_code=403, detail="Not your dispatch")
     if STATUS_ORDER[payload.status] <= STATUS_ORDER[dispatch.status]:
         raise HTTPException(status_code=422, detail="Dispatch status cannot move backward")
 
@@ -137,7 +141,8 @@ def list_dispatches(center_id: int | None = None, db: Session = Depends(get_db),
              "status": d.status, "distance_km": d.distance_km, "eta_minutes": d.eta_minutes,
              "route_geojson": d.route_geojson,
              "resources_loaded": d.resources_loaded, "created_at": d.created_at,
-             "assigned_to": d.assigned_to}
+             "assigned_to": d.assigned_to, "driver_id": d.driver_id, "plan_id": d.plan_id,
+             "dispatched_by": d.dispatched_by}
             for d in q.order_by(Dispatch.created_at.desc()).all()]
 
 

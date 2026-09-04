@@ -12,9 +12,9 @@ import { FLAG_API, FLAG_LABELS, FLAG_TYPES, NEED_API, NEED_LABELS, NEED_TYPES, S
 import { convexHull, nearestDepot } from '../../utils/geo';
 import { PlaceSearch } from './components/PlaceSearch';
 
-export function MapPage({ centerId, sites, depots, damaged, centers, dispatches, refresh, onOpenRoute }: {
+export function MapPage({ centerId, sites, depots, damaged, centers, dispatches, currentUserId, refresh, onOpenRoute }: {
   centerId: number; sites: Site[]; depots: Depot[]; damaged: Damage[]; centers: CenterRow[];
-  dispatches: DispatchRow[]; refresh: () => void; onOpenRoute: (d: DispatchRow) => void;
+  dispatches: DispatchRow[]; currentUserId: number; refresh: () => void; onOpenRoute: (d: DispatchRow) => void;
 }) {
   const [layers, setLayers] = useState({ sites: true, depots: true, damage: true, routes: true, flood: true, centers: true });
   const [reason, setReason] = useState('');
@@ -198,7 +198,7 @@ export function MapPage({ centerId, sites, depots, damaged, centers, dispatches,
   ], [sites, depots, layers, myLocation, searchPin, redMark, saving, damaged, affectedSites]);
 
   const polylines: LeafPolyline[] = useMemo(() => [
-    ...(layers.routes ? dispatches.filter(d => d.route_geojson?.coordinates?.length > 1).map(d => ({
+    ...(layers.routes ? dispatches.filter(d => d.dispatched_by === currentUserId && d.route_geojson?.coordinates?.length > 1).map(d => ({
       id: `r${d.dispatch_id}`,
       coords: d.route_geojson.coordinates.map((c: number[]) => ({ lat: c[1], lng: c[0] })),
       color: C.primaryFixedDim, width: 4, dashed: true,

@@ -13,7 +13,7 @@ router = APIRouter(prefix="/api", tags=["roads"])
 
 @router.post("/roads/damage", status_code=201)
 async def report_damage(payload: DamageReport, db: Session = Depends(get_db),
-                        user: dict = Depends(require_role("coordinator"))):
+                        user: dict = Depends(require_role("coordinator", "driver"))):
     G = get_graph()
     edge_u, edge_v, edge_key = _nearest_edges(G, payload.lng, payload.lat)
     edge_data = G.get_edge_data(edge_u, edge_v, edge_key)
@@ -56,7 +56,7 @@ def list_damaged(center_id: int | None = None, db: Session = Depends(get_db),
 
 @router.get("/routes")
 async def get_route(from_depot_id: int, to_site_id: int, db: Session = Depends(get_db),
-                    user: dict = Depends(require_role("coordinator"))):
+                    user: dict = Depends(require_role("coordinator", "driver"))):
     depot = db.query(Depot).get(from_depot_id)
     site = db.query(Site).get(to_site_id)
     if not depot or not site:

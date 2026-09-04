@@ -2,8 +2,8 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 
-from app.api.routes import (accounts, auth, centers, depots, dispatch, plan,
-                            reports, roads, sites)
+from app.api.routes import (accounts, auth, centers, depots, dispatch, drivers,
+                            plan, plans, reports, roads, sites)
 from app.services.routing import load_graph_on_startup
 
 
@@ -16,7 +16,8 @@ async def lifespan(app: FastAPI):
 app = FastAPI(title="MADAD Backend", version="1.1.0", lifespan=lifespan)
 
 for router in (auth.router, accounts.router, centers.router, depots.router,
-               reports.router, sites.router, plan.router, roads.router, dispatch.router):
+               reports.router, sites.router, plan.router, plans.router, roads.router,
+               dispatch.router, drivers.router):
     app.include_router(router)
 
 

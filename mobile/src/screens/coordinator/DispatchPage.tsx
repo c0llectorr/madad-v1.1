@@ -7,18 +7,19 @@ import { api } from '../../api';
 import LeafletMap, { LeafMarker, LeafPolyline, LeafPolygon, LeafletMapHandle } from '../../LeafletMap';
 import { C, T, SEVERITY_BAR, SEVERITY_COLORS } from '../../theme';
 import { AppBar, Button, Card, Chip, Err, Fab, Field, Loading, PillButton, Screen, SectionTitle, StatusChip, Stepper } from '../../components';
-import type { Allocation, CenterRow, CoordinatorRow, Damage, Depot, DispatchRow, ReportRow, Site } from '../../types';
+import type { Allocation, CenterRow, CoordinatorRow, Damage, Depot, DispatchRow, PlanT, ReportRow, Site } from '../../types';
 import { FLAG_API, FLAG_LABELS, FLAG_TYPES, NEED_API, NEED_LABELS, NEED_TYPES, SEV_API, SEVERITIES } from '../../utils/constants';
 import { convexHull, nearestDepot } from '../../utils/geo';
 import { AssignCoordinatorList } from './components/AssignCoordinatorList';
 
-export function DispatchPage({ centerId, sites, depots, dispatches, refresh, onOpenRoute }: {
+export function DispatchPage({ centerId, sites, depots, dispatches, plans, refresh, onOpenRoute, onEditPlan, onAssignPlan }: {
   centerId: number; sites: Site[]; depots: Depot[]; dispatches: DispatchRow[];
-  refresh: () => void; onOpenRoute: (d: DispatchRow) => void;
+  plans: PlanT[]; refresh: () => void; onOpenRoute: (d: DispatchRow) => void;
+  onEditPlan: (plan: PlanT) => void; onAssignPlan: (plan: PlanT) => void;
 }) {
   const [assignFor, setAssignFor] = useState<Site | null>(null);
 
-  const ready = sites.filter(s => s.status === 'unserved' || s.status === 'planned');
+  const ready = plans.filter(p => p.status === 'draft' || p.status === 'finalized');
   const nearestDepot = (site: Site) => {
     if (depots.length === 0) return null;
     return depots.reduce((best, d) =>
@@ -65,31 +66,31 @@ export function DispatchPage({ centerId, sites, depots, dispatches, refresh, onO
         <SectionTitle title="Dispatches"
           sub="Assign workers to affected regions and track active convoys." />
 
-        <Text style={[T.titleLg, { color: C.onSurface, marginBottom: 8 }]}>Ready to Dispatch</Text>
+        <Text style={[T.titleLg, { color: C.onSurface, marginBottom: 8 }]}>Plans</Text>
         {ready.length === 0 && (
           <Card>
             <Text style={[T.bodyMd, { color: C.onSurfaceVariant, textAlign: 'center', padding: 10 }]}>
-              No regions waiting — confirmed reports appear here when they need a convoy.
+              No plans yet — generate one from a confirmed report in the Reports tab.
             </Text>
           </Card>
         )}
-        {ready.map(s => {
-          const depot = nearestDepot(s);
-          return (
-            <Card key={s.id} barColor={SEVERITY_BAR[s.severity ?? 'low'] ?? C.primary}
-                  onPress={() => setAssignFor(s)}>
-              <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-                <Text style={[T.titleLg, { color: C.onSurface, flex: 1 }]}>{s.location_name}</Text>
-                {s.severity && <StatusChip label={s.severity.toUpperCase()}
-                  tone={s.severity === 'critical' ? 'critical' : s.severity === 'high' ? 'warning' : 'info'} />}
-              </View>
-              <Text style={[T.bodyMd, { color: C.onSurfaceVariant, marginTop: 4 }]}>
-                Est. Pop ~{s.estimated_population} · from {depot ? depot.name : 'nearest depot'}
-              </Text>
-              <Text style={[T.labelSm, { color: C.primary, marginTop: 6 }]}>Tap to start dispatch & assign a worker ›</Text>
-            </Card>
-          );
-        })}
+        {ready.map(p => (
+          <Card key={p.plan_id} barColor={p.status === 'draft' ? C.warning : C.primary}
+                onPress={() => p.status === 'draft' ? onEditPlan(p) : onAssignPlan(p)}>
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+              <Text style={[T.titleLg, { color: C.onSurface, flex: 1 }]}>{p.site_name}</Text>
+              <StatusChip label={p.status.toUpperCase()}
+                          tone={p.status === 'draft' ? 'warning' : 'info'} />
+            </View>
+            <Text style={[T.bodyMd, { color: C.onSurfaceVariant, marginTop: 4 }]}>
+              Est. Pop ~{p.estimated_population} ·
+              {' '}{p.items.map(i => `${i.resource_type}×${i.quantity}`).join(', ') || 'no resources'}
+            </Text>
+            <Text style={[T.labelSm, { color: C.primary, marginTop: 6 }]}>
+              {p.status === 'draft' ? 'Tap to edit quantities ›' : 'Tap to assign a driver ›'}
+            </Text>
+          </Card>
+        ))}
 
         <View style={{ height: 10 }} />
         <Text style={[T.titleLg, { color: C.onSurface, marginBottom: 8 }]}>Active & Past Dispatches</Text>
@@ -111,7 +112,7 @@ export function DispatchPage({ centerId, sites, depots, dispatches, refresh, onO
               </View>
               <Text style={[T.bodyMd, { color: C.onSurfaceVariant, marginTop: 4 }]}>
                 {d.distance_km != null ? `${d.distance_km.toFixed(1)} km` : '—'} · ETA {d.eta_minutes ?? '—'} min
-                {d.assigned_to ? ` · worker #${d.assigned_to}` : ' · unassigned'}
+                {d.driver_id ? ` · driver #${d.driver_id}` : ' · unassigned'}
               </Text>
               <View style={{ flexDirection: 'row', marginTop: 10 }}>
                 {d.status === 'planned' && (

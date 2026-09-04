@@ -26,7 +26,7 @@ class SupportCenter(Base):
 
 class User(Base):
     __tablename__ = "users"
-    __table_args__ = (CheckConstraint("role IN ('administrator', 'coordinator')"),)
+    __table_args__ = (CheckConstraint("role IN ('administrator', 'coordinator', 'driver')"),)
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     center_id: Mapped[int | None] = mapped_column(ForeignKey("support_centers.id", ondelete="CASCADE"))
@@ -161,3 +161,36 @@ class DispatchReroute(Base):
     new_eta_minutes: Mapped[int | None] = mapped_column(Integer)
     reason: Mapped[str | None] = mapped_column(String(200))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class Driver(Base):
+    __tablename__ = "drivers"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), unique=True, nullable=False)
+    depot_id: Mapped[int] = mapped_column(ForeignKey("depots.id", ondelete="CASCADE"), nullable=False)
+    status: Mapped[str] = mapped_column(String(20), nullable=False, default="available")
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class Plan(Base):
+    __tablename__ = "plans"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    site_id: Mapped[int] = mapped_column(ForeignKey("sites.id", ondelete="CASCADE"), nullable=False)
+    center_id: Mapped[int] = mapped_column(ForeignKey("support_centers.id", ondelete="CASCADE"), nullable=False)
+    generated_by: Mapped[int | None] = mapped_column(ForeignKey("users.id"))
+    source: Mapped[str] = mapped_column(String(10), nullable=False, default="ai")
+    reasoning: Mapped[str | None] = mapped_column(Text)
+    status: Mapped[str] = mapped_column(String(20), nullable=False, default="draft")
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+
+
+class PlanItem(Base):
+    __tablename__ = "plan_items"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    plan_id: Mapped[int] = mapped_column(ForeignKey("plans.id", ondelete="CASCADE"), nullable=False)
+    resource_type: Mapped[str] = mapped_column(String(40), nullable=False)
+    quantity: Mapped[int] = mapped_column(Integer, nullable=False)

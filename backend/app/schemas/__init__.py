@@ -108,3 +108,10 @@ class DispatchStatusUpdate(BaseModel):
 # --- ASSIGNMENT ---
 class AssignRequest(BaseModel):
     coordinator_id: int
+
+class PlanItemIn(BaseModel):
+    resource_type: str
+    quantity: int = Field(gt=0)
+
+class PlanItemsUpdate(BaseModel):
+    items: list[PlanItemIn]

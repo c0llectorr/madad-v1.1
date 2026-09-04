@@ -130,3 +130,43 @@ CREATE INDEX idx_damaged_roads_center_active ON damaged_roads(center_id, active)
 -- active dispatch; availability flips available <-> on_route.
 ALTER TABLE dispatches ADD COLUMN IF NOT EXISTS assigned_to INTEGER REFERENCES users(id);
 CREATE INDEX IF NOT EXISTS idx_dispatches_assigned ON dispatches(assigned_to) WHERE assigned_to IS NOT NULL;
+
+-- v1.2: driver role + persisted AI plans
+ALTER TABLE users DROP CONSTRAINT users_role_check;
+ALTER TABLE users ADD CONSTRAINT users_role_check
+  CHECK (role IN ('administrator', 'coordinator', 'driver'));
+
+CREATE TABLE IF NOT EXISTS drivers (
+  id         SERIAL PRIMARY KEY,
+  user_id    INTEGER NOT NULL UNIQUE REFERENCES users(id) ON DELETE CASCADE,
+  depot_id   INTEGER NOT NULL REFERENCES depots(id) ON DELETE CASCADE,
+  status     VARCHAR(20) NOT NULL DEFAULT 'available'
+             CHECK (status IN ('available', 'on_route')),
+  created_at TIMESTAMPTZ DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS idx_drivers_depot ON drivers(depot_id);
+
+CREATE TABLE IF NOT EXISTS plans (
+  id           SERIAL PRIMARY KEY,
+  site_id      INTEGER NOT NULL REFERENCES sites(id) ON DELETE CASCADE,
+  center_id    INTEGER NOT NULL REFERENCES support_centers(id) ON DELETE CASCADE,
+  generated_by INTEGER REFERENCES users(id),
+  source       VARCHAR(10) NOT NULL DEFAULT 'ai' CHECK (source IN ('ai', 'manual')),
+  reasoning    TEXT,
+  status       VARCHAR(20) NOT NULL DEFAULT 'draft' CHECK (status IN ('draft', 'finalized', 'assigned')),
+  created_at   TIMESTAMPTZ DEFAULT now(),
+  updated_at   TIMESTAMPTZ DEFAULT now()
+);
+
+CREATE TABLE IF NOT EXISTS plan_items (
+  id            SERIAL PRIMARY KEY,
+  plan_id       INTEGER NOT NULL REFERENCES plans(id) ON DELETE CASCADE,
+  resource_type VARCHAR(40) NOT NULL,
+  quantity      INTEGER NOT NULL CHECK (quantity >= 0),
+  UNIQUE (plan_id, resource_type)
+);
+
+ALTER TABLE dispatches ADD COLUMN IF NOT EXISTS plan_id INTEGER REFERENCES plans(id);
+ALTER TABLE dispatches ADD COLUMN IF NOT EXISTS driver_id INTEGER REFERENCES drivers(id);
+CREATE INDEX IF NOT EXISTS idx_dispatches_driver ON dispatches(driver_id) WHERE driver_id IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_plans_site ON plans(site_id);

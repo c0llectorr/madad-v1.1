@@ -14,10 +14,14 @@ import { NewReportModal } from './modals/NewReportModal';
 import { PlanResourcesModal } from './modals/PlanResourcesModal';
 import { ActiveRouteModal } from './modals/ActiveRouteModal';
 import { AssignSiteModal } from './modals/AssignSiteModal';
+import PlanEditorModal from './modals/PlanEditorModal';
+import AssignDriverModal from './modals/AssignDriverModal';
+import type { PlanT } from '../../types';
 
 type Sub = null
   | { name: 'newReport'; edit?: { report_id: number; site: Site } }
-  | { name: 'plan'; alloc: Allocation; site: Site | undefined }
+  | { name: 'planEditor'; plan: PlanT }
+  | { name: 'assignDriver'; plan: PlanT }
   | { name: 'assignSite'; site: Site }
   | { name: 'route'; dispatch: DispatchRow };
 
@@ -37,6 +41,7 @@ export default function CoordinatorNavigator({ session, onLogout }: { session: L
   const [reports, setReports] = useState<ReportRow[]>([]);
   const [dispatches, setDispatches] = useState<DispatchRow[]>([]);
   const [centers, setCenters] = useState<CenterRow[]>([]);
+  const [plans, setPlans] = useState<PlanT[]>([]);
   const [planningReportId, setPlanningReportId] = useState<number | null>(null);
 
   // Single source of truth for "Generate Plan": generates, stores, and opens.
@@ -44,15 +49,9 @@ export default function CoordinatorNavigator({ session, onLogout }: { session: L
     if (centerId == null) return;
     setPlanningReportId(reportId);
     try {
-      const res = await api<{ allocations: Allocation[] }>('/plan/generate',
-        { method: 'POST', body: { center_id: centerId } });
-      const alloc = res.allocations.find(a => a.site_id === site.id);
-      if (alloc) {
-        setSub({ name: 'plan', alloc, site });
-      } else {
-        Alert.alert('Nothing to allocate',
-          `No resources could be allocated for ${site.location_name} — check depot stock and the site's needs.`);
-      }
+      const plan = await api<PlanT>('/plan/generate',
+        { method: 'POST', body: { site_id: site.id, center_id: centerId } });
+      setSub({ name: 'planEditor', plan });
     } catch (e: any) {
       Alert.alert('Plan failed', e.message);
     } finally {
@@ -74,6 +73,7 @@ export default function CoordinatorNavigator({ session, onLogout }: { session: L
     api<ReportRow[]>(`/reports?center_id=${centerId}`).then(setReports).catch(() => {});
     api<DispatchRow[]>(`/dispatch?center_id=${centerId}`).then(setDispatches).catch(() => {});
     api<CenterRow[]>('/centers').then(setCenters).catch(() => {});
+    api<PlanT[]>(`/plans?center_id=${centerId}`).then(setPlans).catch(() => {});
   }, [centerId]);
   useEffect(load, [load, key]);
 
@@ -98,10 +98,15 @@ export default function CoordinatorNavigator({ session, onLogout }: { session: L
     return <AssignSiteModal centerId={centerId} currentUserId={session.user_id} site={sub.site}
                             onBack={() => { setSub(null); refresh(); }} />;
   }
-  if (sub?.name === 'plan') {
-    return <PlanResourcesModal centerId={centerId} currentUserId={session.user_id} alloc={sub.alloc} site={sub.site}
-                               depots={depots} onBack={() => { setSub(null); refresh(); }}
-                               onDone={() => { setSub(null); setTab('map'); refresh(); }} />;
+  if (sub?.name === 'planEditor') {
+    return <PlanEditorModal plan={sub.plan} centerId={centerId}
+                            onBack={() => { setSub(null); refresh(); }}
+                            onFinalized={(plan) => setSub({ name: 'assignDriver', plan })} />;
+  }
+  if (sub?.name === 'assignDriver') {
+    return <AssignDriverModal plan={sub.plan}
+                              onBack={() => { setSub(null); setTab('dispatches'); refresh(); }}
+                              onAssigned={() => {}} />;
   }
   if (sub?.name === 'route') {
     return <ActiveRouteModal centerId={centerId} dispatchRow={sub.dispatch} sites={sites}
@@ -125,7 +130,7 @@ export default function CoordinatorNavigator({ session, onLogout }: { session: L
           <HomePage centerId={centerId} sites={sites} reports={reports} dispatches={dispatches} depots={depots}
                     onNewReport={() => setSub({ name: 'newReport' })}
                     onPendingReports={() => setTab('reports')}
-                    onDispatch={(alloc: Allocation) => setSub({ name: 'plan', alloc, site: sites.find(s => s.id === alloc.site_id) })}
+                    onDispatch={() => {}}
                     onAssignSite={(site: Site) => setSub({ name: 'assignSite', site })} />
         )}
         {tab === 'reports' && (
@@ -138,12 +143,15 @@ export default function CoordinatorNavigator({ session, onLogout }: { session: L
         )}
         {tab === 'dispatches' && (
           <DispatchPage centerId={centerId} sites={sites} depots={depots} dispatches={dispatches}
-                        refresh={refresh} onOpenRoute={openRoute} />
+                        plans={plans} refresh={refresh} onOpenRoute={openRoute}
+                        onEditPlan={(plan: PlanT) => setSub({ name: 'planEditor', plan })}
+                        onAssignPlan={(plan: PlanT) => setSub({ name: 'assignDriver', plan })} />
         )}
         {tab === 'map' && (
           <MapPage centerId={centerId} sites={sites} depots={depots} damaged={damaged}
                    centers={centers.filter(cn => cn.id === centerId)}
-                   dispatches={dispatches} refresh={refresh}
+                   dispatches={dispatches.filter(d => d.dispatched_by === session.user_id)} refresh={refresh}
+                   currentUserId={session.user_id}
                    onOpenRoute={openRoute} />
         )}
         {tab === 'profile' && (
