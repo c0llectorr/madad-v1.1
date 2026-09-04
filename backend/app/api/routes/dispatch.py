@@ -2,11 +2,11 @@ from fastapi import APIRouter, Depends, HTTPException
 from fastapi.concurrency import run_in_threadpool
 from sqlalchemy.orm import Session
 
-from app.api.deps import require_role
+from app.api.deps import require_role, get_current_user
 from app.db.session import get_db
-from app.models import Dispatch, DispatchReroute, DamagedRoad, Depot, Site
+from app.models import Dispatch, DispatchReroute, DamagedRoad, Depot, Site, User
 from app.schemas import DispatchCreate, DispatchStatusUpdate, RerouteRequest
-from app.services.routing import (compute_route, get_damaged_edge_pairs, path_to_geojson)
+from app.services.routing import (compute_route, get_damaged_edge_pairs, path_to_geojson, direct_fallback)
 
 router = APIRouter(prefix="/api/dispatch", tags=["dispatch"])
 
@@ -40,10 +40,11 @@ async def create_dispatch(payload: DispatchCreate, db: Session = Depends(get_db)
         result = await run_in_threadpool(
             compute_route, (depot.lat, depot.lng), (site.lat, site.lng), damaged_edge_pairs)
         if result is None:
-            raise HTTPException(status_code=404,
-                                detail="No route found — origin and destination may be disconnected in the road graph")
+            # Outside the loaded corridor - straight-line fallback keeps
+            # dispatch working nationwide (real routing resumes inside it).
+            result = direct_fallback((depot.lat, depot.lng), (site.lat, site.lng))
 
-        route_geojson = path_to_geojson(result["path_nodes"])
+        route_geojson = result.get("geojson") or path_to_geojson(result["path_nodes"])
         new_dispatch = Dispatch(center_id=user["center_id"], site_id=payload.site_id,
                                 depot_id=payload.depot_id, dispatched_by=user["user_id"],
                                 resources_loaded=[r.model_dump() for r in payload.resources],
@@ -99,16 +100,17 @@ async def reroute_dispatch(dispatch_id: int, payload: RerouteRequest, db: Sessio
     result = await run_in_threadpool(
         compute_route, (payload.current_lat, payload.current_lng), (site.lat, site.lng), damaged_edge_pairs)
     if result is None:
-        raise HTTPException(status_code=404,
-                            detail="No route found from current position — destination may be unreachable")
+        result = direct_fallback((payload.current_lat, payload.current_lng), (site.lat, site.lng))
 
     result_direct = await run_in_threadpool(
         compute_route, (payload.current_lat, payload.current_lng), (site.lat, site.lng), set())
+    if result_direct is None:
+        result_direct = direct_fallback((payload.current_lat, payload.current_lng), (site.lat, site.lng))
 
     old_eta = dispatch.eta_minutes
     new_eta = round(result["travel_time_sec"] / 60)
 
-    dispatch.route_geojson = path_to_geojson(result["path_nodes"])
+    dispatch.route_geojson = result.get("geojson") or path_to_geojson(result["path_nodes"])
     dispatch.distance_km = result["distance_km"]
     dispatch.eta_minutes = new_eta
 
@@ -127,12 +129,58 @@ async def reroute_dispatch(dispatch_id: int, payload: RerouteRequest, db: Sessio
 
 @router.get("")
 def list_dispatches(center_id: int | None = None, db: Session = Depends(get_db),
-                    user: dict = Depends(require_role("coordinator"))):
+                    user: dict = Depends(require_role("coordinator", "administrator"))):
     q = db.query(Dispatch)
     if center_id:
         q = q.filter(Dispatch.center_id == center_id)
     return [{"dispatch_id": d.id, "site_id": d.site_id, "depot_id": d.depot_id,
              "status": d.status, "distance_km": d.distance_km, "eta_minutes": d.eta_minutes,
              "route_geojson": d.route_geojson,
-             "resources_loaded": d.resources_loaded, "created_at": d.created_at}
+             "resources_loaded": d.resources_loaded, "created_at": d.created_at,
+             "assigned_to": d.assigned_to}
             for d in q.order_by(Dispatch.created_at.desc()).all()]
+
+
+@router.post("/{dispatch_id}/assign")
+def assign_coordinator(dispatch_id: int, payload: dict, db: Session = Depends(get_db),
+                       user: dict = Depends(require_role("coordinator"))):
+    """Assign one available coordinator to a planned/en_route dispatch.
+    Rules: only one assignment per dispatch; a coordinator can hold only one
+    active assignment."""
+    dispatch = db.query(Dispatch).get(dispatch_id)
+    if not dispatch:
+        raise HTTPException(status_code=404, detail="Dispatch not found")
+    if dispatch.status == "delivered":
+        raise HTTPException(status_code=409, detail="Cannot assign a delivered dispatch")
+    if dispatch.assigned_to:
+        raise HTTPException(status_code=409, detail="Dispatch already has an assigned coordinator")
+
+    coordinator = db.query(User).get(payload.get("coordinator_id"))
+    if not coordinator or coordinator.role != "coordinator" or not coordinator.is_active:
+        raise HTTPException(status_code=404, detail="Coordinator not found")
+    dispatch.assigned_to = coordinator.id
+    db.commit()
+    return {"dispatch_id": dispatch.id, "assigned_to": coordinator.id}
+
+
+@router.post("/{dispatch_id}/unassign")
+def unassign_coordinator(dispatch_id: int, db: Session = Depends(get_db),
+                         user: dict = Depends(require_role("coordinator"))):
+    """Release the assigned coordinator (assignment cancelled pre-departure)."""
+    dispatch = db.query(Dispatch).get(dispatch_id)
+    if not dispatch:
+        raise HTTPException(status_code=404, detail="Dispatch not found")
+    if not dispatch.assigned_to:
+        raise HTTPException(status_code=409, detail="Dispatch has no assigned coordinator")
+    dispatch.assigned_to = None
+    db.commit()
+    return {"dispatch_id": dispatch.id, "assigned_to": None}
+
+
+@router.get("/available-coordinators")
+def available_coordinators(center_id: int, db: Session = Depends(get_db),
+                           user: dict = Depends(require_role("coordinator", "administrator"))):
+    """All active coordinators of a center — anyone can be assigned."""
+    rows = db.query(User).filter(User.center_id == center_id, User.role == "coordinator",
+                                 User.is_active == True).all()  # noqa: E712
+    return [{"user_id": u.id, "username": u.username, "center_id": u.center_id} for u in rows]

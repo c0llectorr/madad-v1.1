@@ -295,19 +295,35 @@ export function Fab({ icon = '＋', onPress, color = C.primary, bottomOffset }: 
 export function Stepper({ label, value, onChange }: {
   label: string; value: number; onChange: (v: number) => void;
 }) {
+  const [text, setText] = React.useState(String(value));
+  React.useEffect(() => { setText(String(value)); }, [value]);
+  const commit = (t: string) => {
+    const n = parseInt(t.replace(/[^0-9]/g, ''), 10);
+    onChange(isNaN(n) ? 0 : n);
+  };
   return (
     <View style={s.stepperRow}>
       <View style={s.stepperIcon}><Text style={{ fontSize: 18 }}>{'📦'}</Text></View>
       <View style={{ flex: 1, marginHorizontal: 12 }}>
         <Text style={[T.bodyMd, { color: C.onSurface }]}>{label}</Text>
-        <Text style={[T.titleLg, { color: C.onSurface }]}>{value}</Text>
+        <TextInput
+          style={{ borderBottomWidth: 1, borderBottomColor: C.outlineVariant,
+                   color: C.onSurface, fontSize: 20, fontWeight: '600', paddingVertical: 2 }}
+          value={text}
+          onChangeText={setText}
+          onEndEditing={() => commit(text)}
+          onSubmitEditing={() => commit(text)}
+          onBlur={() => commit(text)}
+          keyboardType="number-pad"
+          selectTextOnFocus
+        />
       </View>
       <View style={s.stepperBtns}>
-        <Pressable onPress={() => onChange(Math.max(0, value - 1))} style={s.stepBtn}>
-          <Text style={{ fontSize: 20, color: C.onSurface }}>{'−'}</Text>
+        <Pressable onPress={() => onChange(Math.max(0, value - 10))} style={s.stepBtn}>
+          <Text style={{ fontSize: 16, color: C.onSurface }}>{'−10'}</Text>
         </Pressable>
-        <Pressable onPress={() => onChange(value + 1)} style={s.stepBtn}>
-          <Text style={{ fontSize: 20, color: C.onSurface }}>{'＋'}</Text>
+        <Pressable onPress={() => onChange(value + 10)} style={s.stepBtn}>
+          <Text style={{ fontSize: 16, color: C.onSurface }}>{'+10'}</Text>
         </Pressable>
       </View>
     </View>

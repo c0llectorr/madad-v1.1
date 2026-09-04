@@ -125,3 +125,8 @@ CREATE INDEX idx_dispatches_center_status ON dispatches(center_id, status);
 CREATE INDEX idx_reports_center_status ON reports(center_id, status);
 CREATE INDEX idx_users_center_role ON users(center_id, role);
 CREATE INDEX idx_damaged_roads_center_active ON damaged_roads(center_id, active);
+
+-- Driver assignment (v1.1): one coordinator may be assigned to at most one
+-- active dispatch; availability flips available <-> on_route.
+ALTER TABLE dispatches ADD COLUMN IF NOT EXISTS assigned_to INTEGER REFERENCES users(id);
+CREATE INDEX IF NOT EXISTS idx_dispatches_assigned ON dispatches(assigned_to) WHERE assigned_to IS NOT NULL;

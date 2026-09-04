@@ -1,10 +1,10 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { ActivityIndicator, Pressable, StyleSheet, Text, TextInput, View, ScrollView } from 'react-native';
+import { ActivityIndicator, Alert, Pressable, StyleSheet, Text, TextInput, View, ScrollView } from 'react-native';
 import { KeyboardAwareScrollView } from 'react-native-keyboard-aware-scroll-view';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Location from 'expo-location';
 import { api, LoginResponse } from '../../api';
-import LeafletMap, { LeafMarker, LeafPolyline, LeafletMapHandle } from '../../LeafletMap';
+import LeafletMap, { LeafMarker, LeafPolyline, LeafPolygon, LeafletMapHandle } from '../../LeafletMap';
 import {
   AppBar, BottomNav, Button, Card, Chip, Err, Fab, Field, Loading, PillButton,
   SectionTitle, StatusChip, Stepper, NavTab,
@@ -14,12 +14,14 @@ import { C, T, RADIUS, SEVERITY_BAR, SEVERITY_COLORS } from '../../theme';
 const NAV: NavTab[] = [
   { key: 'home', label: 'Home', icon: '⌂' },
   { key: 'reports', label: 'Reports', icon: '▤' },
+  { key: 'dispatches', label: 'Dispatches', icon: '🚚' },
   { key: 'map', label: 'Map', icon: '🗺' },
   { key: 'profile', label: 'Profile', icon: '👤' },
 ];
 
-interface Site { id: number; location_name: string; lat: number; lng: number; estimated_population: number; needs: string[]; urgency_flags: string[]; severity: string | null; confidence: string; priority_score: number | null; status: string }
+interface Site { id: number; report_id?: number | null; location_name: string; lat: number; lng: number; estimated_population: number; needs: string[]; urgency_flags: string[]; severity: string | null; confidence: string; priority_score: number | null; status: string }
 interface Depot { id: number; name: string; lat: number; lng: number; inventory: { resource_type: string; quantity: number }[] }
+interface CenterRow { id: number; code: string; name: string; region: string | null; lat: number; lng: number }
 interface Damage { id: number; lat: number; lng: number; reason: string | null; edge_geometry: any; reported_at: string }
 interface ReportRow {
   report_id: number;
@@ -33,7 +35,8 @@ interface ReportRow {
     needs: string[];
   } | null;
 }
-interface DispatchRow { dispatch_id: number; site_id: number; depot_id: number; status: string; distance_km: number | null; eta_minutes: number | null; route_geojson: any; resources_loaded: any[] }
+interface DispatchRow { dispatch_id: number; site_id: number; depot_id: number; status: string; distance_km: number | null; eta_minutes: number | null; route_geojson: any; resources_loaded: any[]; assigned_to?: number | null }
+interface CoordinatorRow { user_id: number; username: string; center_id: number | null; is_active: boolean }
 interface Allocation { site_id: number; depot_id: number | null; rank: number; priority_score: number; resources: { resource_type: string; quantity: number }[]; reasoning: string }
 
 const NEED_TYPES = ['Food', 'Water', 'Medical Evac', 'Shelter', 'Medicine', 'Gen. Evac'];
@@ -49,8 +52,10 @@ const FLAG_API: Record<string, string> = {
   Pregnancy: 'pregnancy', 'Injury Reported': 'injury_reported',
   'Water Rising Fast': 'water_rising', 'Stranded / No Exit': 'stranded_no_exit',
 };
+const NEED_LABELS: Record<string, string> = Object.fromEntries(Object.entries(NEED_API).map(([label, api]) => [api, label]));
+const FLAG_LABELS: Record<string, string> = Object.fromEntries(Object.entries(FLAG_API).map(([label, api]) => [api, label]));
 
-type Sub = null | { name: 'newReport' } | { name: 'plan'; alloc: Allocation; site: Site | undefined }
+type Sub = null | { name: 'newReport'; edit?: { report_id: number; site: Site } } | { name: 'plan'; alloc: Allocation; site: Site | undefined } | { name: 'assignSite'; site: Site }
   | { name: 'route'; dispatch: DispatchRow };
 
 export default function CoordinatorShell({ session, onLogout }: { session: LoginResponse; onLogout: () => void }) {
@@ -66,6 +71,36 @@ export default function CoordinatorShell({ session, onLogout }: { session: Login
   const [damaged, setDamaged] = useState<Damage[]>([]);
   const [reports, setReports] = useState<ReportRow[]>([]);
   const [dispatches, setDispatches] = useState<DispatchRow[]>([]);
+  const [centers, setCenters] = useState<CenterRow[]>([]);
+  const [planAllocations, setPlanAllocations] = useState<Allocation[] | null>(null);
+  const [planningReportId, setPlanningReportId] = useState<number | null>(null);
+
+  // Single source of truth for "Generate Plan": generates, stores, and opens.
+  const generatePlanFor = async (site: Site, reportId: number) => {
+    setPlanningReportId(reportId);
+    try {
+      const res = await api<{ allocations: Allocation[] }>('/plan/generate',
+        { method: 'POST', body: { center_id: centerId } });
+      setPlanAllocations(res.allocations);
+      const alloc = res.allocations.find(a => a.site_id === site.id);
+      if (alloc) {
+        setSub({ name: 'plan', alloc, site });
+      } else {
+        Alert.alert('Nothing to allocate',
+          `No resources could be allocated for ${site.location_name} — check depot stock and the site's needs.`);
+      }
+    } catch (e: any) {
+      Alert.alert('Plan failed', e.message);
+    } finally {
+      setPlanningReportId(null);
+    }
+  };
+
+  // Routes are public: any coordinator can view, follow, or reroute any
+  // dispatch (field fallback when the assigned driver loses connectivity).
+  const checkOpenRoute = (d: DispatchRow) => {
+    setSub({ name: 'route', dispatch: d });
+  };
 
   const load = useCallback(() => {
     if (centerId == null) return;
@@ -74,6 +109,7 @@ export default function CoordinatorShell({ session, onLogout }: { session: Login
     api<Damage[]>(`/roads/damaged?center_id=${centerId}`).then(setDamaged).catch(() => {});
     api<ReportRow[]>(`/reports?center_id=${centerId}`).then(setReports).catch(() => {});
     api<DispatchRow[]>(`/dispatch?center_id=${centerId}`).then(setDispatches).catch(() => {});
+    api<CenterRow[]>('/centers').then(setCenters).catch(() => {});
   }, [centerId]);
   useEffect(load, [load, key]);
 
@@ -91,11 +127,17 @@ export default function CoordinatorShell({ session, onLogout }: { session: Login
   }
 
   if (sub?.name === 'newReport') {
-    return <NewReportScreen centerId={centerId} onBack={() => { setSub(null); refresh(); }} />;
+    return <NewReportScreen centerId={centerId} edit={sub.edit}
+                            onBack={() => { setSub(null); refresh(); }} />;
+  }
+  if (sub?.name === 'assignSite') {
+    return <AssignSiteScreen centerId={centerId} currentUserId={session.user_id} site={sub.site}
+                             onBack={() => { setSub(null); refresh(); }} />;
   }
   if (sub?.name === 'plan') {
-    return <PlanResourcesScreen centerId={centerId} alloc={sub.alloc} site={sub.site}
-                                depots={depots} onBack={() => { setSub(null); refresh(); }} />;
+    return <PlanResourcesScreen centerId={centerId} currentUserId={session.user_id} alloc={sub.alloc} site={sub.site}
+                                depots={depots} onBack={() => { setSub(null); refresh(); }}
+                                onDone={() => { setSub(null); setTab('map'); refresh(); }} />;
   }
   if (sub?.name === 'route') {
     return <ActiveRouteScreen centerId={centerId} dispatchRow={sub.dispatch} sites={sites}
@@ -117,15 +159,25 @@ export default function CoordinatorShell({ session, onLogout }: { session: Login
       <View style={{ flex: 1 }}>
         {tab === 'home' && (
           <HomeTab centerId={centerId} sites={sites} reports={reports} dispatches={dispatches} depots={depots}
-                   onNewReport={() => setSub({ name: 'newReport' })} onPendingReports={() => setTab('reports')} onDispatch={(alloc) => setSub({ name: 'plan', alloc, site: sites.find(s => s.id === alloc.site_id) })} />
+                   onNewReport={() => setSub({ name: 'newReport' })} onPendingReports={() => setTab('reports')} onDispatch={(alloc) => setSub({ name: 'plan', alloc, site: sites.find(s => s.id === alloc.site_id) })} onAssignSite={(site) => setSub({ name: 'assignSite', site })} />
         )}
         {tab === 'reports' && (
-          <ReportsTab centerId={centerId} reports={reports} onNewReport={() => setSub({ name: 'newReport' })} refresh={refresh} />
+          <ReportsTab centerId={centerId} reports={reports} sites={sites}
+            onNewReport={() => setSub({ name: 'newReport' })}
+            onEditReport={(report_id, site) => setSub({ name: 'newReport', edit: { report_id, site } })}
+            onPlanSite={generatePlanFor}
+            planningReportId={planningReportId}
+            refresh={refresh} />
+        )}
+        {tab === 'dispatches' && (
+          <DispatchesTab centerId={centerId} sites={sites} depots={depots} dispatches={dispatches}
+                         refresh={refresh} onOpenRoute={d => checkOpenRoute(d)} />
         )}
         {tab === 'map' && (
           <MapTab centerId={centerId} sites={sites} depots={depots} damaged={damaged}
+                  centers={centers.filter(cn => cn.id === centerId)}
                   dispatches={dispatches} refresh={refresh}
-                  onOpenRoute={d => setSub({ name: 'route', dispatch: d })} />
+                  onOpenRoute={d => checkOpenRoute(d)} />
         )}
         {tab === 'profile' && (
           <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: 16 }}>
@@ -150,25 +202,14 @@ export default function CoordinatorShell({ session, onLogout }: { session: Login
 }
 
 /* ================= HOME ================= */
-function HomeTab({ centerId, sites, reports, dispatches, depots, onNewReport, onPendingReports, onDispatch }: {
+function HomeTab({ centerId, sites, reports, dispatches, depots, onNewReport, onPendingReports, onDispatch, onAssignSite }: {
   centerId: number; sites: Site[]; reports: ReportRow[]; dispatches: DispatchRow[]; depots: Depot[];
   onNewReport: () => void; onPendingReports: () => void; onDispatch: (a: Allocation) => void;
+  onAssignSite: (site: Site) => void;
 }) {
-  const [allocations, setAllocations] = useState<Allocation[] | null>(null);
-  const [err, setErr] = useState<string | null>(null);
-  const [busy, setBusy] = useState(false);
-
   const pending = reports.filter(r => r.status === 'pending_extraction' || r.status === 'extracted').length;
   const activeDispatches = dispatches.filter(d => d.status !== 'delivered').length;
   const lowStock = depots.flatMap(d => d.inventory).filter(i => i.quantity < 100).length;
-
-  const generateFor = async () => {
-    setBusy(true); setErr(null);
-    try {
-      const res = await api<{ allocations: Allocation[] }>('/plan/generate', { method: 'POST', body: { center_id: centerId } });
-      setAllocations(res.allocations);
-    } catch (e: any) { setErr(e.message); } finally { setBusy(false); }
-  };
 
   const top = [...sites].filter(s => s.status !== 'delivered')
     .sort((a, b) => (b.priority_score ?? 0) - (a.priority_score ?? 0)).slice(0, 5);
@@ -207,11 +248,7 @@ function HomeTab({ centerId, sites, reports, dispatches, depots, onNewReport, on
 
       <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 12 }}>
         <Text style={[T.titleLg, { color: C.onSurface, flex: 1 }]}>Top Relief Sites</Text>
-        {busy ? <Loading /> : (
-          <PillButton title="Generate Plan" onPress={generateFor} icon="⚙" />
-        )}
       </View>
-      <Err msg={err} />
 
       {top.map((s, i) => (
         <Card key={s.id} barColor={SEVERITY_BAR[s.severity ?? 'low'] ?? C.primary}>
@@ -226,42 +263,38 @@ function HomeTab({ centerId, sites, reports, dispatches, depots, onNewReport, on
           <View style={{ flexDirection: 'row', flexWrap: 'wrap', marginTop: 8 }}>
             {(s.needs ?? []).slice(0, 4).map(n => <Chip key={n} label={n} />)}
           </View>
+          {(s.status === 'unserved' || s.status === 'planned') && (
+            <View style={{ marginTop: 10 }}>
+              <Button title="Assign Coordinator to this Region" kind="outlined" icon="👤"
+                      onPress={() => onAssignSite(s)} />
+            </View>
+          )}
         </Card>
       ))}
       {top.length === 0 && <Text style={[T.bodyMd, { color: C.onSurfaceVariant }]}>No confirmed sites yet — submit a report.</Text>}
 
-      {allocations && allocations.map(a => {
-        const site = sites.find(s => s.id === a.site_id);
-        return (
-          <Card key={a.site_id} barColor={C.primary}>
-            <Text style={[T.labelLg, { color: C.primary }]}>#{a.rank} {site?.location_name ?? `Site ${a.site_id}`}</Text>
-            <Text style={[T.bodyMd, { color: C.onSurfaceVariant, marginTop: 4 }]}>{a.reasoning}</Text>
-            <View style={{ flexDirection: 'row', flexWrap: 'wrap', marginTop: 8 }}>
-              {a.resources.map(r => <Chip key={r.resource_type} label={`${r.resource_type} ×${r.quantity}`} />)}
-            </View>
-            {a.depot_id && a.resources.length > 0 && (
-              <View style={{ marginTop: 8 }}>
-                <Button title="Dispatch this" kind="outlined" onPress={() => onDispatch(a)} />
-              </View>
-            )}
-          </Card>
-        );
-      })}
     </ScrollView>
   );
 }
 
 /* ================= REPORTS ================= */
-function ReportsTab({ centerId, reports, onNewReport, refresh }: {
-  centerId: number; reports: ReportRow[]; onNewReport: () => void; refresh: () => void;
+function ReportsTab({ centerId, reports, sites, onNewReport, onEditReport, onPlanSite, planningReportId, refresh }: {
+  centerId: number; reports: ReportRow[]; sites: Site[];
+  onNewReport: () => void;
+  onEditReport: (report_id: number, site: Site) => void;
+  onPlanSite: (site: Site, reportId: number) => void;
+  planningReportId: number | null;
+  refresh: () => void;
 }) {
   const [err, setErr] = useState<string | null>(null);
+  const [extractingId, setExtractingId] = useState<number | null>(null);
   const [review, setReview] = useState<{ report_id: number; extracted: any; geocode_status: string } | null>(null);
   const [revLoc, setRevLoc] = useState(''); const [revLat, setRevLat] = useState('');
   const [revLng, setRevLng] = useState(''); const [revPop, setRevPop] = useState('');
 
   const extract = async (id: number) => {
     setErr(null);
+    setExtractingId(id);
     try {
       const res = await api<any>(`/reports/${id}/extract`, { method: 'POST' });
       setReview(res);
@@ -269,7 +302,7 @@ function ReportsTab({ centerId, reports, onNewReport, refresh }: {
       setRevPop(String(res.extracted.estimated_population ?? ''));
       setRevLat(res.extracted.lat != null ? String(res.extracted.lat) : '');
       setRevLng(res.extracted.lng != null ? String(res.extracted.lng) : '');
-    } catch (e: any) { setErr(e.message); }
+    } catch (e: any) { setErr(e.message); } finally { setExtractingId(null); }
   };
 
   const reviewSubmit = async (status: 'confirmed' | 'rejected') => {
@@ -359,9 +392,39 @@ function ReportsTab({ centerId, reports, onNewReport, refresh }: {
           )}
           {r.status === 'pending_extraction' && r.raw_text && (
             <View style={{ marginTop: 8 }}>
-              <Button title="Run AI Extraction" kind="outlined" onPress={() => extract(r.report_id)} icon="✦" />
+              <Button
+                title={extractingId === r.report_id ? 'Extracting… AI is reading the report' : 'Run AI Extraction'}
+                kind="outlined"
+                icon={extractingId === r.report_id ? '⏳' : '✦'}
+                disabled={extractingId !== null}
+                onPress={() => extract(r.report_id)} />
+              {extractingId === r.report_id && (
+                <Text style={[T.labelSm, { color: C.onSurfaceVariant, marginTop: 4, textAlign: 'center' }]}>
+                  This usually takes a few seconds — please wait.
+                </Text>
+              )}
             </View>
           )}
+          {(r.status === 'extracted' || r.status === 'confirmed') && (() => {
+            const site = sites.find(s => s.report_id === r.report_id);
+            return (
+              <View style={{ marginTop: 8 }}>
+                <Button title="Edit Extracted Data" kind="outlined" icon="✎"
+                        onPress={() => {
+                          if (!site) { setErr('No site record found for this report yet — confirm it first.'); return; }
+                          onEditReport(r.report_id, site);
+                        }} />
+                {site && (
+                  <Button
+                    title={planningReportId === r.report_id ? 'Generating plan…' : 'Generate Plan for this Report'}
+                    kind="tertiary"
+                    icon={planningReportId === r.report_id ? '⏳' : '⚙'}
+                    disabled={planningReportId !== null}
+                    onPress={() => onPlanSite(site, r.report_id)} />
+                )}
+              </View>
+            );
+          })()}
         </Card>
       ))}
       {reports.length === 0 && (
@@ -406,7 +469,7 @@ function PlaceSearch({ onSelect }: {
       const url =
         `https://nominatim.openstreetmap.org/search` +
         `?q=${encodeURIComponent(text.trim())}` +
-        `&format=json&limit=5&addressdetails=0`;
+        `&format=json&limit=5&addressdetails=0&countrycodes=pk`;
       const res = await fetch(url, {
         headers: { 'Accept-Language': 'en', 'User-Agent': 'MADAD-FloodResponse/1.0' },
       });
@@ -521,12 +584,33 @@ const ps = StyleSheet.create({
   },
 });
 
+/* ================= FLOOD ZONE ANALYSIS ================= */
+/** Convex hull (Andrew monotone chain) over affected-site coordinates — the
+ *  shaded region visualizes the flood's current extent and spread direction. */
+export function convexHull(points: { lat: number; lng: number }[]): { lat: number; lng: number }[] {
+  if (points.length < 3) return points;
+  const pts = [...points].sort((a, b) => a.lng - b.lng || a.lat - b.lat);
+  const cross = (o: any, a: any, b: any) =>
+    (a.lng - o.lng) * (b.lat - o.lat) - (a.lat - o.lat) * (b.lng - o.lng);
+  const lower: typeof pts = [];
+  for (const pt of pts) {
+    while (lower.length >= 2 && cross(lower[lower.length - 2], lower[lower.length - 1], pt) <= 0) lower.pop();
+    lower.push(pt);
+  }
+  const upper: typeof pts = [];
+  for (const pt of [...pts].reverse()) {
+    while (upper.length >= 2 && cross(upper[upper.length - 2], upper[upper.length - 1], pt) <= 0) upper.pop();
+    upper.push(pt);
+  }
+  return [...lower.slice(0, -1), ...upper.slice(0, -1)];
+}
+
 /* ================= MAP ================= */
-function MapTab({ centerId, sites, depots, damaged, dispatches, refresh, onOpenRoute }: {
-  centerId: number; sites: Site[]; depots: Depot[]; damaged: Damage[];
+function MapTab({ centerId, sites, depots, damaged, centers, dispatches, refresh, onOpenRoute }: {
+  centerId: number; sites: Site[]; depots: Depot[]; damaged: Damage[]; centers: CenterRow[];
   dispatches: DispatchRow[]; refresh: () => void; onOpenRoute: (d: DispatchRow) => void;
 }) {
-  const [layers, setLayers] = useState({ sites: true, depots: true, damage: true, routes: true });
+  const [layers, setLayers] = useState({ sites: true, depots: true, damage: true, routes: true, flood: true, centers: true });
   const [reason, setReason] = useState('');
   const [toast, setToast] = useState<{ kind: 'ok' | 'err'; msg: string } | null>(null);
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -637,6 +721,18 @@ function MapTab({ centerId, sites, depots, damaged, dispatches, refresh, onOpenR
     }
   };
 
+  // ── Flood zone: hull over all reported (affected) sites + impact stats ──
+  const affectedSites = useMemo(() =>
+    sites.filter(s => (s.lat !== 0 || s.lng !== 0)), [sites]);
+  const floodHull = useMemo(() => convexHull(
+    affectedSites.map(s => ({ lat: s.lat, lng: s.lng }))), [affectedSites]);
+  const floodPolygons: LeafPolygon[] = useMemo(() => {
+    if (!layers.flood || floodHull.length < 3) return [];
+    return [{ id: 'floodzone', coords: floodHull, color: C.primary, fillOpacity: 0.12, dashed: true }];
+  }, [layers.flood, floodHull]);
+  const affectedPeople = affectedSites.reduce((sum, s) => sum + (s.estimated_population || 0), 0);
+  const criticalCount = affectedSites.filter(s => s.severity === 'critical' || s.severity === 'high').length;
+
   // ── Markers ───────────────────────────────────────────────────────────────
   const markers: LeafMarker[] = useMemo(() => [
     ...(layers.sites ? sites.map(site => ({
@@ -646,10 +742,34 @@ function MapTab({ centerId, sites, depots, damaged, dispatches, refresh, onOpenR
       color: '#E65100',  // deep orange — colorblind-safe, distinct from blue
       label: 'R',
     })) : []),
+    // Flood-report flags — the exact points inside the shaded Flood Zone
+    ...(layers.flood ? affectedSites.map(site => ({
+      id: `f${site.id}`, lat: site.lat, lng: site.lng,
+      title: `🌊 Flood reported — ${site.location_name}`,
+      snippet: `~${site.estimated_population} people`
+        + (site.severity ? ` · severity: ${site.severity}` : '')
+        + (site.estimated_population ? '' : ''),
+      color: C.primary,
+      label: '🌊',
+    })) : []),
     ...(layers.depots ? depots.map(d => ({
       id: `d${d.id}`, lat: d.lat, lng: d.lng, title: d.name, snippet: 'Depot',
       color: '#1565C0',  // strong blue — safe contrast against orange
       label: 'D',
+    })) : []),
+    // Support/relief centers — administrative hubs, visible nationwide
+    ...(layers.centers ? centers.map(cn => ({
+      id: `c${cn.id}`, lat: cn.lat, lng: cn.lng,
+      title: cn.name, snippet: `Support Center · ${cn.code} · ${cn.region ?? ''}`,
+      color: C.secondary, label: 'C',
+    })) : []),
+    // Road damage = POINT flags at the reported location, not path segments
+    ...(layers.damage ? damaged.map(dg => ({
+      id: `dg${dg.id}`, lat: dg.lat, lng: dg.lng,
+      title: '⚠️ Road Blocked',
+      snippet: dg.reason || 'Severe flooding / damage reported here',
+      color: C.critical,
+      label: '!',
     })) : []),
     ...(myLocation ? [{
       id: 'me', lat: myLocation.lat, lng: myLocation.lng,
@@ -669,19 +789,16 @@ function MapTab({ centerId, sites, depots, damaged, dispatches, refresh, onOpenR
       snippet: saving ? 'Reporting…' : 'Tap "Confirm & Report" to submit, or "Clear mark" to redo',
       color: C.critical,
     }] : []),
-  ], [sites, depots, layers, myLocation, searchPin, redMark, saving]);
+  ], [sites, depots, layers, myLocation, searchPin, redMark, saving, damaged, affectedSites]);
 
   const polylines: LeafPolyline[] = useMemo(() => [
-    ...(layers.damage ? damaged.flatMap(dg =>
-      dg.edge_geometry?.coordinates?.length > 1
-        ? [{ id: `g${dg.id}`, coords: dg.edge_geometry.coordinates.map((c: number[]) => ({ lat: c[1], lng: c[0] })), color: C.critical, width: 4 }]
-        : []) : []),
     ...(layers.routes ? dispatches.filter(d => d.route_geojson?.coordinates?.length > 1).map(d => ({
       id: `r${d.dispatch_id}`,
       coords: d.route_geojson.coordinates.map((c: number[]) => ({ lat: c[1], lng: c[0] })),
       color: C.primaryFixedDim, width: 4, dashed: true,
     })) : []),
   ], [damaged, dispatches, layers]);
+
 
   const activeDispatches = dispatches.filter(d => d.status === 'en_route');
 
@@ -694,9 +811,29 @@ function MapTab({ centerId, sites, depots, damaged, dispatches, refresh, onOpenR
           ref={mapRef}
           markers={markers}
           polylines={polylines}
-          fit={markers.length > 0 || polylines.length > 0}
+          polygons={floodPolygons}
+          center={myLocation ?? { lat: 29.85, lng: 70.45 }}
+          zoom={myLocation ? 12 : 8}
+          fit={!myLocation && (markers.length > 0 || polylines.length > 0 || floodPolygons.length > 0)}
           onMapPress={handleMapTap}
         />
+        {/* Flood impact summary — extent & direction of the flood so far */}
+        {layers.flood && affectedSites.length > 0 && (
+          <Card barColor={C.primary}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+              <Text style={[T.titleLg, { color: C.onSurface }]}>🌊 Flood Impact Zone</Text>
+              <StatusChip label={`${affectedSites.length} sites affected`} tone="info" />
+            </View>
+            <Text style={[T.bodyMd, { color: C.onSurfaceVariant, marginTop: 6 }]}>
+              ~{affectedPeople.toLocaleString()} people inside the affected region
+              {criticalCount > 0 ? ` · ${criticalCount} high/critical site${criticalCount > 1 ? 's' : ''}` : ''}
+            </Text>
+            <Text style={[T.labelSm, { color: C.onSurfaceVariant, marginTop: 4 }]}>
+              The shaded area spans every reported site — its spread shows the flood's
+              direction; unreported settlements on the fringe are the ones to watch next.
+            </Text>
+          </Card>
+        )}
         {/* Locate-me overlay */}
         <Pressable
           onPress={recenter}
@@ -725,6 +862,8 @@ function MapTab({ centerId, sites, depots, damaged, dispatches, refresh, onOpenR
             <Chip label="Relief Sites" selected={layers.sites} color='#E65100' onPress={() => setLayers(l => ({ ...l, sites: !l.sites }))} />
             <Chip label="Depots" selected={layers.depots} color='#1565C0' onPress={() => setLayers(l => ({ ...l, depots: !l.depots }))} />
             <Chip label="Road Damage" selected={layers.damage} color={C.critical} onPress={() => setLayers(l => ({ ...l, damage: !l.damage }))} />
+            <Chip label="Flood Zone" selected={layers.flood} color={C.primary} onPress={() => setLayers(l => ({ ...l, flood: !l.flood }))} />
+            <Chip label="Centers" selected={layers.centers} color={C.secondary} onPress={() => setLayers(l => ({ ...l, centers: !l.centers }))} />
             <Chip label="Routes" selected={layers.routes} color={C.primaryFixedDim} onPress={() => setLayers(l => ({ ...l, routes: !l.routes }))} />
           </View>
         </Card>
@@ -854,22 +993,231 @@ function MapTab({ centerId, sites, depots, damaged, dispatches, refresh, onOpenR
   );
 }
 
+
+
+/* ================= COORDINATOR PICKER (shared) ================= */
+function AssignCoordinatorList({ centerId, site, onAssigned }: {
+  centerId: number; site: Site; onAssigned: (username: string) => void;
+}) {
+  const [workers, setWorkers] = useState<CoordinatorRow[] | null>(null);
+  const [err, setErr] = useState<string | null>(null);
+  const [busyId, setBusyId] = useState<number | null>(null);
+  const [doneUser, setDoneUser] = useState<string | null>(null);
+
+  useEffect(() => {
+    api<CoordinatorRow[]>(`/dispatch/available-coordinators?center_id=${centerId}`)
+      .then(list => setWorkers(list.filter(u => u.is_active)))
+      .catch(e => { setErr(e.message); setWorkers([]); });
+  }, [centerId]);
+
+  const assign = async (coordinatorId: number) => {
+    setErr(null);
+    setBusyId(coordinatorId);
+    try {
+      await api(`/sites/${site.id}/assign`, { method: 'POST', body: { coordinator_id: coordinatorId } });
+      const u = workers?.find(w => w.user_id === coordinatorId);
+      setDoneUser(u?.username ?? `#${coordinatorId}`);
+      onAssigned(u?.username ?? '');
+    } catch (e: any) { setErr(e.message); } finally { setBusyId(null); }
+  };
+
+  if (doneUser) {
+    return (
+      <Card barColor={C.tertiary}>
+        <Text style={[T.titleLg, { color: C.onSurface }]}>✓ Dispatch started</Text>
+        <Text style={[T.bodyMd, { color: C.onSurfaceVariant, marginTop: 6 }]}>
+          {doneUser} is assigned to {site.location_name}. The convoy route from the
+          nearest depot is live — track it on the Map tab.
+        </Text>
+      </Card>
+    );
+  }
+
+  return (
+    <View>
+      <Err msg={err} />
+      <Text style={[T.labelLg, { color: C.onSurface, marginBottom: 8 }]}>
+        Workers of this support center — pick one:
+      </Text>
+      {workers === null && <Loading />}
+      {workers?.length === 0 && (
+        <Card>
+          <Text style={[T.bodyMd, { color: C.onSurfaceVariant, textAlign: 'center', padding: 10 }]}>
+            No workers registered in this center yet.
+          </Text>
+        </Card>
+      )}
+      {workers?.map(u => (
+        <Card key={u.user_id}>
+          <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+            <View style={{ width: 44, height: 44, borderRadius: 22, backgroundColor: C.surfaceHigh,
+                          alignItems: 'center', justifyContent: 'center', marginRight: 12 }}>
+              <Text style={{ color: C.primary, fontSize: 18 }}>{'👤'}</Text>
+            </View>
+            <Text style={[T.titleLg, { color: C.onSurface, flex: 1 }]}>{u.username}</Text>
+          </View>
+          <View style={{ marginTop: 10 }}>
+            <Button title={busyId === u.user_id ? 'Starting dispatch…' : `Start Dispatch with ${u.username}`}
+                    kind="primary" icon="➤"
+                    disabled={busyId !== null}
+                    onPress={() => assign(u.user_id)} />
+          </View>
+        </Card>
+      ))}
+    </View>
+  );
+}
+
+/* ================= DISPATCHES TAB ================= */
+function DispatchesTab({ centerId, sites, depots, dispatches, refresh, onOpenRoute }: {
+  centerId: number; sites: Site[]; depots: Depot[]; dispatches: DispatchRow[];
+  refresh: () => void; onOpenRoute: (d: DispatchRow) => void;
+}) {
+  const [assignFor, setAssignFor] = useState<Site | null>(null);
+
+  const ready = sites.filter(s => s.status === 'unserved' || s.status === 'planned');
+  const nearestDepot = (site: Site) => {
+    if (depots.length === 0) return null;
+    return depots.reduce((best, d) =>
+      ((d.lat - site.lat) ** 2 + (d.lng - site.lng) ** 2) <
+      ((best.lat - site.lat) ** 2 + (best.lng - site.lng) ** 2) ? d : best);
+  };
+
+  const setStatus = async (id: number, status: 'en_route' | 'delivered') => {
+    try { await api(`/dispatch/${id}/status`, { method: 'PATCH', body: { status } }); refresh(); }
+    catch (e: any) { Alert.alert('Error', e.message); }
+  };
+
+  if (assignFor) {
+    const depot = nearestDepot(assignFor);
+    return (
+      <View style={{ flex: 1, backgroundColor: C.background }}>
+        <AppBar title="MADAD" onBack={() => setAssignFor(null)} />
+        <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: 16, paddingBottom: 40 }}>
+          <SectionTitle title="Start Dispatch"
+            sub="From the nearest depot to the affected region — pick any worker of this center to drive it." />
+          <Card barColor={SEVERITY_BAR[assignFor.severity ?? 'low'] ?? C.primary}>
+            <Text style={[T.titleLg, { color: C.onSurface }]}>{assignFor.location_name}</Text>
+            <Text style={[T.bodyMd, { color: C.onSurfaceVariant, marginTop: 4 }]}>
+              Est. Pop ~{assignFor.estimated_population}
+              {(assignFor.needs ?? []).length > 0 ? ` · Needs: ${assignFor.needs.join(', ')}` : ''}
+            </Text>
+            {depot && (
+              <Text style={[T.labelLg, { color: C.primary, marginTop: 8 }]}>
+                🏬 Nearest depot: {depot.name}
+              </Text>
+            )}
+          </Card>
+
+          <AssignCoordinatorList centerId={centerId} site={assignFor}
+                                 onAssigned={() => { refresh(); }} />
+        </ScrollView>
+      </View>
+    );
+  }
+
+  return (
+    <View style={{ flex: 1 }}>
+      <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: 16, paddingBottom: 100 }}>
+        <SectionTitle title="Dispatches"
+          sub="Assign workers to affected regions and track active convoys." />
+
+        <Text style={[T.titleLg, { color: C.onSurface, marginBottom: 8 }]}>Ready to Dispatch</Text>
+        {ready.length === 0 && (
+          <Card>
+            <Text style={[T.bodyMd, { color: C.onSurfaceVariant, textAlign: 'center', padding: 10 }]}>
+              No regions waiting — confirmed reports appear here when they need a convoy.
+            </Text>
+          </Card>
+        )}
+        {ready.map(s => {
+          const depot = nearestDepot(s);
+          return (
+            <Card key={s.id} barColor={SEVERITY_BAR[s.severity ?? 'low'] ?? C.primary}
+                  onPress={() => setAssignFor(s)}>
+              <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+                <Text style={[T.titleLg, { color: C.onSurface, flex: 1 }]}>{s.location_name}</Text>
+                {s.severity && <StatusChip label={s.severity.toUpperCase()}
+                  tone={s.severity === 'critical' ? 'critical' : s.severity === 'high' ? 'warning' : 'info'} />}
+              </View>
+              <Text style={[T.bodyMd, { color: C.onSurfaceVariant, marginTop: 4 }]}>
+                Est. Pop ~{s.estimated_population} · from {depot ? depot.name : 'nearest depot'}
+              </Text>
+              <Text style={[T.labelSm, { color: C.primary, marginTop: 6 }]}>Tap to start dispatch & assign a worker ›</Text>
+            </Card>
+          );
+        })}
+
+        <View style={{ height: 10 }} />
+        <Text style={[T.titleLg, { color: C.onSurface, marginBottom: 8 }]}>Active & Past Dispatches</Text>
+        {dispatches.length === 0 && (
+          <Card>
+            <Text style={[T.bodyMd, { color: C.onSurfaceVariant, textAlign: 'center', padding: 10 }]}>
+              No dispatches yet — start one from a region above.
+            </Text>
+          </Card>
+        )}
+        {dispatches.map(d => {
+          const site = sites.find(s => s.id === d.site_id);
+          return (
+            <Card key={d.dispatch_id} barColor={d.status === 'delivered' ? C.tertiary : C.primary}>
+              <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+                <Text style={[T.titleLg, { color: C.onSurface }]}>#{d.dispatch_id} → {site?.location_name ?? `Site ${d.site_id}`}</Text>
+                <StatusChip label={d.status.replace('_', ' ').toUpperCase()}
+                  tone={d.status === 'delivered' ? 'ok' : d.status === 'en_route' ? 'info' : 'warning'} />
+              </View>
+              <Text style={[T.bodyMd, { color: C.onSurfaceVariant, marginTop: 4 }]}>
+                {d.distance_km != null ? `${d.distance_km.toFixed(1)} km` : '—'} · ETA {d.eta_minutes ?? '—'} min
+                {d.assigned_to ? ` · worker #${d.assigned_to}` : ' · unassigned'}
+              </Text>
+              <View style={{ flexDirection: 'row', marginTop: 10 }}>
+                {d.status === 'planned' && (
+                  <View style={{ flex: 1, marginRight: 6 }}>
+                    <Button title="Mark en route" kind="outlined" onPress={() => setStatus(d.dispatch_id, 'en_route')} />
+                  </View>
+                )}
+                {d.status === 'en_route' && (<>
+                  <View style={{ flex: 1, marginRight: 6 }}>
+                    <Button title="Delivered" kind="tertiary" onPress={() => setStatus(d.dispatch_id, 'delivered')} />
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Button title="Open route" kind="primary" onPress={() => onOpenRoute(d)} />
+                  </View>
+                </>)}
+              </View>
+            </Card>
+          );
+        })}
+      </ScrollView>
+    </View>
+  );
+}
+
 /* ================= NEW REPORT ================= */
-function NewReportScreen({ centerId, onBack }: { centerId: number; onBack: () => void }) {
-  const [mode, setMode] = useState<'text' | 'form'>('text');
+function NewReportScreen({ centerId, edit, onBack }: {
+  centerId: number;
+  edit?: { report_id: number; site: Site };
+  onBack: () => void;
+}) {
+  const [mode, setMode] = useState<'text' | 'form'>(edit ? 'form' : 'text');
   const [err, setErr] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
   // free text
   const [rawText, setRawText] = useState('');
   // structured
-  const [locName, setLocName] = useState('');
-  const [lat, setLat] = useState('');
-  const [lng, setLng] = useState('');
-  const [headcount, setHeadcount] = useState('');
-  const [severity, setSeverity] = useState('Medium');
-  const [needs, setNeeds] = useState<string[]>([]);
-  const [flags, setFlags] = useState<string[]>([]);
+  const [locName, setLocName] = useState(edit?.site.location_name ?? '');
+  const [lat, setLat] = useState(edit ? String(edit.site.lat) : '');
+  const [lng, setLng] = useState(edit ? String(edit.site.lng) : '');
+  const [headcount, setHeadcount] = useState(edit ? String(edit.site.estimated_population) : '');
+  const [severity, setSeverity] = useState<string>(
+    edit?.site.severity
+      ? ({ low: 'Low', medium: 'Medium', high: 'High', critical: 'Critical' } as const)[edit.site.severity as 'low' | 'medium' | 'high' | 'critical'] ?? 'Medium'
+      : 'Medium');
+  const [needs, setNeeds] = useState<string[]>(
+    edit ? (edit.site.needs ?? []).map((n: string) => NEED_LABELS[n] ?? n) : []);
+  const [flags, setFlags] = useState<string[]>(
+    edit ? (edit.site.urgency_flags ?? []).map((f: string) => FLAG_LABELS[f] ?? f) : []);
 
   const [geocoding, setGeocoding] = useState(false); // true while name→coords lookup running
   const mapRef = useRef<LeafletMapHandle>(null);
@@ -898,7 +1246,7 @@ function NewReportScreen({ centerId, onBack }: { centerId: number; onBack: () =>
       try {
         const url =
           `https://nominatim.openstreetmap.org/search` +
-          `?q=${encodeURIComponent(trimmed)}&format=json&limit=1`;
+          `?q=${encodeURIComponent(trimmed)}&format=json&limit=1&countrycodes=pk`;
         const res = await fetch(url, {
           headers: { 'Accept-Language': 'en', 'User-Agent': 'MADAD-FloodResponse/1.0' },
         });
@@ -931,7 +1279,19 @@ function NewReportScreen({ centerId, onBack }: { centerId: number; onBack: () =>
   const submit = async () => {
     setBusy(true); setErr(null);
     try {
-      if (mode === 'text') {
+      if (edit) {
+        // Edit path: update the report's site in place — no new report created.
+        await api(`/reports/${edit.report_id}`, { method: 'PATCH', body: {
+          location_name: locName,
+          lat: parseFloat(lat),
+          lng: parseFloat(lng),
+          estimated_population: parseInt(headcount || '0', 10),
+          severity: SEV_API[severity],
+          needs: needs.map(n => NEED_API[n]),
+          urgency_flags: flags.map(f => FLAG_API[f] ?? f),
+          status: 'confirmed',
+        } });
+      } else if (mode === 'text') {
         await api('/reports', { method: 'POST', body: { center_id: centerId, source: 'manual', raw_text: rawText } });
       } else {
         await api('/reports', { method: 'POST', body: { center_id: centerId, source: 'manual',
@@ -962,6 +1322,8 @@ function NewReportScreen({ centerId, onBack }: { centerId: number; onBack: () =>
           <LeafletMap
             ref={mapRef}
             height={180}
+            center={hasCoords ? { lat: parsedLat, lng: parsedLng } : { lat: 29.85, lng: 70.45 }}
+            zoom={hasCoords ? 13 : 8}
             markers={hasCoords ? [{
               id: 'loc',
               lat: parsedLat,
@@ -993,7 +1355,8 @@ function NewReportScreen({ centerId, onBack }: { centerId: number; onBack: () =>
         enableOnAndroid
         extraScrollHeight={24}
       >
-        <SectionTitle title="New Report" sub="Report a situation on the ground — as free text or a structured form." />
+        <SectionTitle title={edit ? `Edit Report #${edit.report_id}` : "New Report"}
+                        sub={edit ? "Update the extracted data — the site record is updated in place, no new report is created." : "Report a situation on the ground — as free text or a structured form."} />
 
         {/* segmented control */}
         <View style={ns.segment}>
@@ -1109,7 +1472,7 @@ function NewReportScreen({ centerId, onBack }: { centerId: number; onBack: () =>
           </>
         )}
 
-        <Button title={busy ? 'Submitting…' : 'Submit Report'} onPress={submit} icon="➤"
+        <Button title={busy ? 'Saving…' : edit ? 'Save Changes' : 'Submit Report'} onPress={submit} icon="➤"
                 disabled={busy || (mode === 'text' ? !rawText : !locName)} />
       </KeyboardAwareScrollView>
     </View>
@@ -1128,14 +1491,17 @@ function PressableRow({ on, onPress, label }: { on: boolean; onPress: () => void
 }
 
 /* ================= PLAN RESOURCES (dispatch) ================= */
-function PlanResourcesScreen({ centerId, alloc, site, depots, onBack }: {
-  centerId: number; alloc: Allocation; site: Site | undefined; depots: Depot[];
-  onBack: () => void;
+function PlanResourcesScreen({ centerId, currentUserId, alloc, site, depots, onBack, onDone }: {
+  centerId: number; currentUserId: number; alloc: Allocation; site: Site | undefined; depots: Depot[];
+  onBack: () => void; onDone: () => void;
 }) {
   const [qty, setQty] = useState<Record<string, number>>(
     Object.fromEntries(alloc.resources.map(r => [r.resource_type, r.quantity])));
   const [err, setErr] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [createdId, setCreatedId] = useState<number | null>(null);
+  const [coordinators, setCoordinators] = useState<CoordinatorRow[]>([]);
+  const [assignedName, setAssignedName] = useState<string | null>(null);
 
   const depot = depots.find(d => d.id === alloc.depot_id);
   const stock = useMemo(() => Object.fromEntries(
@@ -1146,9 +1512,27 @@ function PlanResourcesScreen({ centerId, alloc, site, depots, onBack }: {
     try {
       const resources = Object.entries(qty).filter(([, q]) => q > 0)
         .map(([resource_type, quantity]) => ({ resource_type, quantity }));
-      await api('/dispatch', { method: 'POST', body: { site_id: alloc.site_id, depot_id: alloc.depot_id, resources } });
-      onBack();
+      const res = await api<any>('/dispatch', { method: 'POST',
+        body: { site_id: alloc.site_id, depot_id: alloc.depot_id, resources } });
+      setCreatedId(res.dispatch_id);
+      // Load available coordinators for assignment (one per destination)
+      try {
+        const list = await api<CoordinatorRow[]>(`/dispatch/available-coordinators?center_id=${centerId}`);
+        setCoordinators(list.filter(u => u.is_active && u.user_id !== currentUserId));
+      } catch (fe: any) {
+        setErr('Could not load coordinators: ' + fe.message);
+        setCoordinators([]);
+      }
     } catch (e: any) { setErr(e.message); } finally { setBusy(false); }
+  };
+
+  const assign = async (coordinatorId: number, name: string) => {
+    if (!createdId) return;
+    setErr(null);
+    try {
+      await api(`/dispatch/${createdId}/assign`, { method: 'POST', body: { coordinator_id: coordinatorId } });
+      setAssignedName(name);
+    } catch (e: any) { setErr(e.message); }
   };
 
   return (
@@ -1183,17 +1567,79 @@ function PlanResourcesScreen({ centerId, alloc, site, depots, onBack }: {
             {Object.keys(qty).length === 0 && (
               <Text style={[T.bodyMd, { color: C.onSurfaceVariant }]}>No planned resources for this site.</Text>
             )}
+
+            {/* Add more resource types from depot stock */}
+            {(() => {
+              const extra = (depot?.inventory ?? []).filter(i => !(i.resource_type in qty) && i.quantity > 0);
+              if (extra.length === 0) return null;
+              return (
+                <View style={{ marginTop: 8 }}>
+                  <Text style={[T.labelLg, { color: C.onSurface }]}>Add from depot stock:</Text>
+                  <View style={{ flexDirection: 'row', flexWrap: 'wrap', marginTop: 6 }}>
+                    {extra.map(i => (
+                      <Chip key={i.resource_type} label={`＋ ${i.resource_type} (${i.quantity} in stock)`}
+                            color={C.tertiary}
+                            onPress={() => setQty(s => ({ ...s, [i.resource_type]: 0 }))} />
+                    ))}
+                  </View>
+                </View>
+              );
+            })()}
           </Card>
 
-          <View style={{ flexDirection: 'row' }}>
-            <View style={{ flex: 1, marginRight: 8 }}>
-              <Button title="Cancel" kind="outlined" onPress={onBack} />
+          {createdId ? (
+            <Card barColor={C.tertiary}>
+              {assignedName ? (
+                <>
+                  <Text style={[T.titleLg, { color: C.onSurface }]}>✓ Dispatch created & assigned</Text>
+                  <Text style={[T.bodyMd, { color: C.onSurfaceVariant, marginTop: 6 }]}>
+                    {assignedName} is on route to {site?.location_name ?? `site #${alloc.site_id}`}.
+                    The route is visible to every coordinator, and anyone can reroute
+                    it if the driver hits trouble.
+                  </Text>
+                  <View style={{ marginTop: 10 }}>
+                    <Button title="Go to dispatch screen" onPress={onDone} kind="tertiary" />
+                  </View>
+                </>
+              ) : (
+                <>
+                  <Text style={[T.titleLg, { color: C.onSurface }]}>Dispatch #{createdId} created</Text>
+                  <Text style={[T.bodyMd, { color: C.onSurfaceVariant, marginTop: 4 }]}>
+                    Assign a coordinator of this center to the destination — one coordinator
+                    per destination; only those currently Available can be selected.
+                  </Text>
+                  {coordinators.length === 0 && (
+                    <Text style={[T.bodyMd, { color: C.onSurfaceVariant, marginTop: 8 }]}>
+                      No other coordinators are registered in this center yet.
+                    </Text>
+                  )}
+                  {coordinators.map(u => (
+                    <View key={u.user_id} style={{ flexDirection: 'row', alignItems: 'center',
+                      backgroundColor: C.surfaceLow, borderRadius: 12, padding: 12, marginTop: 8 }}>
+                      <Text style={[T.titleLg, { color: C.onSurface, flex: 1 }]}>{u.username}</Text>
+                      <View style={{ minWidth: 110 }}>
+                        <Button title="Assign" kind="primary" icon="➤"
+                                onPress={() => assign(u.user_id, u.username)} />
+                      </View>
+                    </View>
+                  ))}
+                  <View style={{ marginTop: 8 }}>
+                    <Button title="Assign later — go to dispatch screen" kind="text" onPress={onDone} />
+                  </View>
+                </>
+              )}
+            </Card>
+          ) : (
+            <View style={{ flexDirection: 'row' }}>
+              <View style={{ flex: 1, marginRight: 8 }}>
+                <Button title="Cancel" kind="outlined" onPress={onBack} />
+              </View>
+              <View style={{ flex: 2 }}>
+                <Button title="Confirm Dispatch" onPress={dispatch} icon="➤"
+                        disabled={busy || Object.values(qty).every(q => q === 0)} />
+              </View>
             </View>
-            <View style={{ flex: 2 }}>
-              <Button title="Confirm Dispatch" onPress={dispatch} icon="➤"
-                      disabled={busy || Object.values(qty).every(q => q === 0)} />
-            </View>
-          </View>
+          )}
         </ScrollView>
       </View>
     </View>
@@ -1242,13 +1688,33 @@ function ActiveRouteScreen({ centerId, dispatchRow, sites, onBack }: {
     } catch (e: any) { setErr(e.message); }
   };
 
-  const reroute = async () => {
+  const reroute = async (silent = false) => {
     if (!coords) return;
-    setErr(null);
+    if (!silent) setErr(null);
     try { setRoute(await api(`/dispatch/${dispatchRow.dispatch_id}/reroute`, {
       method: 'POST', body: { current_lat: coords.lat, current_lng: coords.lng, reason: reason || null } })); }
-    catch (e: any) { setErr(e.message); }
+    catch (e: any) { if (!silent) setErr(e.message); }
   };
+
+  // LIVE ROUTING: while en route, silently recompute the road-following path
+  // from the device's position whenever it moves >=150 m (max once per 45 s).
+  // This is what keeps the polyline on real streets as the driver advances.
+  const lastAuto = useRef<{ lat: number; lng: number; at: number } | null>(null);
+  useEffect(() => {
+    if (!coords) return;
+    const dist = (a: { lat: number; lng: number }, b: { lat: number; lng: number }) => {
+      const R = 6371, dLat = (b.lat - a.lat) * Math.PI / 180, dLng = (b.lng - a.lng) * Math.PI / 180;
+      const h = Math.sin(dLat / 2) ** 2 + Math.cos(a.lat * Math.PI / 180) * Math.cos(b.lat * Math.PI / 180) * Math.sin(dLng / 2) ** 2;
+      return 2 * R * Math.asin(Math.sqrt(h));
+    };
+    const last = lastAuto.current;
+    const movedFar = !last || dist(last, coords) * 1000 >= 150;
+    const cooled = !last || Date.now() - last.at >= 45000;
+    if (movedFar && cooled && !flagged) {
+      lastAuto.current = { ...coords, at: Date.now() };
+      reroute(true);
+    }
+  }, [coords]);
 
   const markDelivered = async () => {
     setErr(null);
@@ -1263,26 +1729,46 @@ function ActiveRouteScreen({ centerId, dispatchRow, sites, onBack }: {
   const dist = route?.distance_km ?? dispatchRow.distance_km;
   const routeLine = route?.geojson ?? dispatchRow.route_geojson;
 
+  // Live leg: from the device's current GPS fix to the destination. Rebuilds
+  // on every coords update from the watcher, so the line follows the device.
+  const dest = routeLine?.coordinates?.length > 0
+    ? { lat: routeLine.coordinates[routeLine.coordinates.length - 1][1],
+        lng: routeLine.coordinates[routeLine.coordinates.length - 1][0] }
+    : site ? { lat: site.lat, lng: site.lng } : null;
+
+  const livePolylines: LeafPolyline[] = useMemo(() => {
+    const lines: LeafPolyline[] = [];
+    if (routeLine?.coordinates?.length > 1) {
+      lines.push({ id: 'route',
+        coords: routeLine.coordinates.map((c: number[]) => ({ lat: c[1], lng: c[0] })),
+        color: C.tertiary, width: 5 });
+    }
+    if (coords && dest) {
+      lines.push({ id: 'live',
+        coords: [{ lat: coords.lat, lng: coords.lng }, { lat: dest.lat, lng: dest.lng }],
+        color: C.critical, width: 3, dashed: true });
+    }
+    return lines;
+  }, [routeLine, coords, dest]);
+
   return (
     <View style={{ flex: 1, backgroundColor: C.background }}>
       <AppBar title="Active Route" onBack={onBack} />
       <View style={{ flex: 1 }}>
         {/* Map lives outside the ScrollView so touch events aren't stolen */}
-        {routeLine?.coordinates?.length > 1 && (
-          <LeafletMap
-            height={240}
-            fit
-            markers={[
-              ...(coords ? [{ id: 'me', lat: coords.lat, lng: coords.lng, title: 'My position', color: C.secondary, icon: 'dot' as const }] : []),
-              { id: 'dst', lat: routeLine.coordinates[routeLine.coordinates.length - 1][1],
-                lng: routeLine.coordinates[routeLine.coordinates.length - 1][0],
-                title: site?.location_name ?? 'Destination', color: C.primary },
-            ]}
-            polylines={[{ id: 'route',
-                          coords: routeLine.coordinates.map((c: number[]) => ({ lat: c[1], lng: c[0] })),
-                          color: C.tertiary, width: 5 }]}
-          />
-        )}
+        <LeafletMap
+          height={240}
+          fit
+          markers={[
+            ...(coords ? [{ id: 'me', lat: coords.lat, lng: coords.lng, title: 'Me (live)', color: C.secondary, icon: 'dot' as const }] : []),
+            ...(dest ? [{ id: 'dst', lat: dest.lat, lng: dest.lng,
+                          title: site?.location_name ?? 'Destination', color: C.primary }] : []),
+          ]}
+          polylines={livePolylines}
+        />
+        <Text style={[T.labelSm, { color: C.onSurfaceVariant, textAlign: 'center', marginTop: 4 }]}>
+          Live position → destination updates as the device moves
+        </Text>
         <KeyboardAwareScrollView
           contentContainerStyle={{ padding: 16, paddingBottom: 40 }}
           keyboardShouldPersistTaps="handled"
@@ -1505,3 +1991,105 @@ const mt = StyleSheet.create({
     flexShrink: 1,
   },
 });
+
+
+/* ================= ASSIGN COORDINATOR TO REGION ================= */
+function AssignSiteScreen({ centerId, currentUserId, site, onBack }: {
+  centerId: number; currentUserId: number; site: Site; onBack: () => void;
+}) {
+  const [coordinators, setCoordinators] = useState<CoordinatorRow[] | null>(null);
+  const [err, setErr] = useState<string | null>(null);
+  const [busyId, setBusyId] = useState<number | null>(null);
+  const [result, setResult] = useState<any>(null);
+
+  useEffect(() => {
+    api<CoordinatorRow[]>(`/dispatch/available-coordinators?center_id=${centerId}`)
+      .then(list => setCoordinators(list.filter(u => u.is_active && u.user_id !== currentUserId)))
+      .catch(e => { setErr(e.message); setCoordinators([]); });
+  }, [centerId]);
+
+  const assign = async (coordinatorId: number) => {
+    setErr(null);
+    setBusyId(coordinatorId);
+    try {
+      const res = await api<any>(`/sites/${site.id}/assign`, {
+        method: 'POST', body: { coordinator_id: coordinatorId } });
+      setResult(res);
+    } catch (e: any) { setErr(e.message); } finally { setBusyId(null); }
+  };
+
+  const assigned = coordinators?.find(u => u.user_id === busyId);
+
+  return (
+    <View style={{ flex: 1, backgroundColor: C.background }}>
+      <AppBar title="MADAD" onBack={onBack} />
+      <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: 16, paddingBottom: 40 }}>
+        <SectionTitle title="Assign Coordinator"
+          sub="Choose an available coordinator to respond to this flood-affected region." />
+
+        <Card barColor={SEVERITY_BAR[site.severity ?? 'low'] ?? C.primary}>
+          <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+            <Text style={[T.titleLg, { color: C.onSurface, flex: 1 }]}>{site.location_name}</Text>
+            {site.severity && <StatusChip label={site.severity.toUpperCase()}
+              tone={site.severity === 'critical' ? 'critical' : site.severity === 'high' ? 'warning' : 'info'} />}
+          </View>
+          <Text style={[T.bodyMd, { color: C.onSurfaceVariant, marginTop: 4 }]}>
+            Est. Pop ~{site.estimated_population}
+            {(site.needs ?? []).length > 0 ? ` · Needs: ${site.needs.join(', ')}` : ''}
+          </Text>
+        </Card>
+
+        <Err msg={err} />
+
+        {result ? (
+          <Card barColor={C.tertiary}>
+            <Text style={[T.titleLg, { color: C.onSurface }]}>✓ Coordinator assigned</Text>
+            <Text style={[T.bodyMd, { color: C.onSurfaceVariant, marginTop: 6 }]}>
+              Dispatch #{result.dispatch_id} is created with a damage-aware route to
+              {' '}{site.location_name}. ETA {result.eta_minutes} min ·
+              {' '}{Number(result.distance_km).toFixed(1)} km.
+            </Text>
+            <Text style={[T.bodyMd, { color: C.onSurfaceVariant, marginTop: 4 }]}>
+              The coordinator's status is now <Text style={{ fontWeight: '700' }}>On Route</Text> and
+              they can open the Active Route screen to navigate.
+            </Text>
+            <View style={{ marginTop: 10 }}>
+              <Button title="Done" onPress={onBack} kind="tertiary" />
+            </View>
+          </Card>
+        ) : (
+          <>
+            <Text style={[T.labelLg, { color: C.onSurface, marginBottom: 8 }]}>
+              Available Coordinators
+            </Text>
+            {coordinators === null && <Loading />}
+            {coordinators?.length === 0 && (
+              <Card>
+                <Text style={[T.bodyMd, { color: C.onSurfaceVariant, textAlign: 'center', padding: 12 }]}>
+                  No other coordinators are registered in this center yet.
+                </Text>
+              </Card>
+            )}
+            {coordinators?.map(u => (
+              <Card key={u.user_id}>
+                <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                  <View style={{ width: 44, height: 44, borderRadius: 22, backgroundColor: C.surfaceHigh,
+                                alignItems: 'center', justifyContent: 'center', marginRight: 12 }}>
+                    <Text style={{ color: C.primary, fontSize: 18 }}>{'👤'}</Text>
+                  </View>
+                  <Text style={[T.titleLg, { color: C.onSurface, flex: 1 }]}>{u.username}</Text>
+                </View>
+                <View style={{ marginTop: 10 }}>
+                  <Button title={busyId === u.user_id ? 'Assigning…' : `Assign to ${site.location_name}`}
+                          kind="primary" icon="➤"
+                          disabled={busyId !== null}
+                          onPress={() => assign(u.user_id)} />
+                </View>
+              </Card>
+            ))}
+          </>
+        )}
+      </ScrollView>
+    </View>
+  );
+}

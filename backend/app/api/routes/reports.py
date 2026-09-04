@@ -4,7 +4,7 @@ from sqlalchemy.orm import Session
 from app.api.deps import require_role
 from app.core.config import settings
 from app.db.session import get_db
-from app.models import Report, Site
+from app.models import Report, Site, SupportCenter
 from app.schemas import ReportCreate, ReportUpdate
 from app.services.geocoding import geocode_location_name
 from app.services.extraction import get_extraction_provider
@@ -27,10 +27,17 @@ async def submit_report(payload: ReportCreate, db: Session = Depends(get_db),
         sf = payload.structured_fields
         report.status = "confirmed"
         geocode_result = await geocode_location_name(sf.location_name, settings.GOOGLE_MAPS_API_KEY)
+        if geocode_result:
+            site_lat, site_lng = geocode_result["lat"], geocode_result["lng"]
+        else:
+            # Geocoding failed/unmatched - place the site at its center's
+            # coordinates (right province, editable later) instead of (0,0).
+            center_row = db.query(SupportCenter).get(payload.center_id)
+            site_lat, site_lng = center_row.lat, center_row.lng
         site = Site(center_id=payload.center_id, report_id=report.id,
                     location_name=sf.location_name,
-                    lat=geocode_result["lat"] if geocode_result else 0.0,
-                    lng=geocode_result["lng"] if geocode_result else 0.0,
+                    lat=site_lat,
+                    lng=site_lng,
                     estimated_population=sf.headcount,
                     severity=sf.severity,
                     needs=sf.needs)
@@ -83,7 +90,8 @@ def review_report(report_id: int, payload: ReportUpdate, db: Session = Depends(g
     report = db.query(Report).get(report_id)
     if not report:
         raise HTTPException(status_code=404, detail="Report not found")
-    if report.status not in ("extracted", "pending_extraction"):
+    editing_confirmed = report.status == "confirmed"
+    if report.status not in ("extracted", "pending_extraction", "confirmed"):
         raise HTTPException(status_code=409, detail="Report already reviewed")
 
     extracted = report.extracted_json or {}
@@ -99,17 +107,32 @@ def review_report(report_id: int, payload: ReportUpdate, db: Session = Depends(g
         raise HTTPException(status_code=422,
                             detail="lat and lng are required to confirm a report — set them explicitly")
 
-    report.status = payload.status or "confirmed"
+    report.status = payload.status or ("confirmed" if editing_confirmed else "confirmed")
 
-    site_id = None
+    # Update the existing site in place when editing a confirmed report,
+    # otherwise create one (first confirmation of an extracted report).
+    site = db.query(Site).filter(Site.report_id == report.id).first()
     if report.status == "confirmed":
-        site = Site(center_id=report.center_id, report_id=report.id,
-                    location_name=location_name, lat=lat, lng=lng,
-                    estimated_population=population or 0,
-                    needs=needs, urgency_flags=urgency_flags,
-                    confidence=extracted.get("confidence", "single_unverified"))
-        db.add(site)
+        if site:
+            site.location_name = location_name
+            site.lat = lat
+            site.lng = lng
+            site.estimated_population = population or 0
+            site.needs = needs
+            site.urgency_flags = urgency_flags
+            if getattr(payload, "severity", None):
+                site.severity = payload.severity
+        else:
+            site = Site(center_id=report.center_id, report_id=report.id,
+                        location_name=location_name, lat=lat, lng=lng,
+                        estimated_population=population or 0,
+                        needs=needs, urgency_flags=urgency_flags,
+                        severity=getattr(payload, "severity", None),
+                        confidence=extracted.get("confidence", "single_unverified"))
+            db.add(site)
         db.flush()
+        site_id = site.id
+    elif site and payload.status == "rejected":
         site_id = site.id
     db.commit()
     return {"site_id": site_id, "status": report.status}

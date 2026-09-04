@@ -60,6 +60,11 @@ def compute_route(origin: tuple[float, float], dest: tuple[float, float],
         path_nodes = nx.shortest_path(G, orig_node, dest_node, weight=weight_func)
     except nx.NetworkXNoPath:
         return None
+    if len(path_nodes) < 2:
+        # Origin and destination snapped to the same node - the destination is
+        # far outside the corridor and the "route" would be 0 km. Callers
+        # should fall back to a straight line.
+        return None
 
     travel_time_sec = sum(G[u][v][0].get("travel_time", 1) for u, v in zip(path_nodes, path_nodes[1:]))
     distance_m = sum(G[u][v][0].get("length", 0) for u, v in zip(path_nodes, path_nodes[1:]))
@@ -77,3 +82,26 @@ def snap_to_edge(lat: float, lng: float) -> tuple[int, int, int]:
     G = get_graph()
     u, v, key = ox.nearest_edges(G, lng, lat)  # (x=lng, y=lat) order
     return u, v, key
+
+
+def haversine_km(origin: tuple[float, float], dest: tuple[float, float]) -> float:
+    import math
+    lat1, lng1, lat2, lng2 = map(math.radians, [origin[0], origin[1], dest[0], dest[1]])
+    a = (math.sin((lat2 - lat1) / 2) ** 2
+         + math.cos(lat1) * math.cos(lat2) * math.sin((lng2 - lng1) / 2) ** 2)
+    return 6371.0 * 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a))
+
+
+def direct_fallback(origin: tuple[float, float], dest: tuple[float, float]) -> dict:
+    """Straight-line route when the road graph cannot reach the destination
+    (outside the loaded corridor). Keeps assignment and dispatch working
+    nationwide; ETA assumes roughly 40 km/h convoy speed."""
+    distance_km = haversine_km(origin, dest)
+    return {
+        "path_nodes": [],
+        "travel_time_sec": distance_km / 40.0 * 3600,
+        "distance_km": distance_km,
+        "geojson": {"type": "LineString",
+                    "coordinates": [[origin[1], origin[0]], [dest[1], dest[0]]]},
+        "fallback": True,
+    }

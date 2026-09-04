@@ -6,7 +6,7 @@ from app.api.deps import require_role
 from app.db.session import get_db
 from app.models import DamagedRoad, Depot, Site
 from app.schemas import DamageReport
-from app.services.routing import get_graph, get_damaged_edge_pairs, compute_route, path_to_geojson
+from app.services.routing import (get_graph, get_damaged_edge_pairs, compute_route, path_to_geojson, direct_fallback)
 
 router = APIRouter(prefix="/api", tags=["roads"])
 
@@ -44,10 +44,12 @@ def _nearest_edges(G, x, y):
 
 
 @router.get("/roads/damaged")
-def list_damaged(center_id: int, db: Session = Depends(get_db),
-                 user: dict = Depends(require_role("coordinator"))):
-    rows = db.query(DamagedRoad).filter(
-        DamagedRoad.center_id == center_id, DamagedRoad.active == True).all()
+def list_damaged(center_id: int | None = None, db: Session = Depends(get_db),
+                 user: dict = Depends(require_role("coordinator", "administrator"))):
+    q = db.query(DamagedRoad).filter(DamagedRoad.active == True)
+    if center_id:
+        q = q.filter(DamagedRoad.center_id == center_id)
+    rows = q.all()
     return [{"id": r.id, "lat": r.lat, "lng": r.lng, "reason": r.reason,
              "edge_geometry": r.edge_geometry, "reported_at": r.reported_at} for r in rows]
 
@@ -68,15 +70,16 @@ async def get_route(from_depot_id: int, to_site_id: int, db: Session = Depends(g
 
     result_with_damage = compute_route((depot.lat, depot.lng), (site.lat, site.lng), damaged_edge_pairs)
     if result_with_damage is None:
-        raise HTTPException(status_code=404,
-                            detail="No route found — origin and destination may be disconnected in the road graph")
+        result_with_damage = direct_fallback((depot.lat, depot.lng), (site.lat, site.lng))
 
     result_direct = compute_route((depot.lat, depot.lng), (site.lat, site.lng), set())
+    if result_direct is None:
+        result_direct = direct_fallback((depot.lat, depot.lng), (site.lat, site.lng))
 
     return {
         "distance_km": result_with_damage["distance_km"],
         "eta_minutes": round(result_with_damage["travel_time_sec"] / 60),
-        "geojson": path_to_geojson(result_with_damage["path_nodes"]),
+        "geojson": result_with_damage.get("geojson") or path_to_geojson(result_with_damage["path_nodes"]),
         "avoided_damage": len(damaged_edge_pairs) > 0,
         "delta_minutes_vs_direct": round((result_with_damage["travel_time_sec"]
                                           - result_direct["travel_time_sec"]) / 60),

@@ -144,7 +144,7 @@ export default function LoginScreen({ onLogin }: { onLogin: (r: LoginResponse) =
           {/* importantForAutofill="yes" groups both fields so Android Autofill
               Framework treats them as a single credential form and offers to
               save / fill after a successful login. */}
-          <View importantForAutofill="yes">
+          <View>
 
           {/* username */}
           <View style={s.fieldWrap}>

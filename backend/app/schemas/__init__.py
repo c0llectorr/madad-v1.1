@@ -62,6 +62,7 @@ class ReportUpdate(BaseModel):
     estimated_population: int | None = None
     needs: list[str] | None = None
     urgency_flags: list[str] | None = None
+    severity: SEVERITY_ENUM | None = None
     status: Literal["confirmed", "rejected"] | None = None
 
 
@@ -103,3 +104,7 @@ class DispatchCreate(BaseModel):
 
 class DispatchStatusUpdate(BaseModel):
     status: Literal["en_route", "delivered"]
+
+# --- ASSIGNMENT ---
+class AssignRequest(BaseModel):
+    coordinator_id: int

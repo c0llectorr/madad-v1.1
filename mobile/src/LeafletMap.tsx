@@ -13,6 +13,14 @@ export interface LeafMarker {
   label?: string;   // single character shown inside the pin
 }
 
+export interface LeafPolygon {
+  id: string;
+  coords: { lat: number; lng: number }[];
+  color: string;
+  fillOpacity?: number;
+  dashed?: boolean;
+}
+
 export interface LeafPolyline {
   id: string;
   coords: { lat: number; lng: number }[];
@@ -109,7 +117,18 @@ const HTML = `<!DOCTYPE html>
   window.__render = function (payload) {
     layers.markers.clearLayers();
     layers.lines.clearLayers();
+    if (layers.areas) layers.areas.clearLayers();
+    layers.areas = L.layerGroup().addTo(map);
     var pts = [];
+    (payload.polygons || []).forEach(function (pg) {
+      var ll = (pg.coords || []).map(function (c) { return [c.lat, c.lng]; });
+      if (ll.length >= 3) {
+        L.polygon(ll, {
+          color: pg.color, weight: 2, dashArray: pg.dashed ? '6 6' : null,
+          fillColor: pg.color, fillOpacity: pg.fillOpacity != null ? pg.fillOpacity : 0.15
+        }).addTo(layers.areas);
+      }
+    });
     (payload.polylines || []).forEach(function (p) {
       var ll = (p.coords || []).map(function (c) { return [c.lat, c.lng]; });
       if (ll.length > 1) {
@@ -149,10 +168,13 @@ const HTML = `<!DOCTYPE html>
     }
   };
 
-  map.on('click', function (e) {
+  function sendTap(lat, lng) {
     window.ReactNativeWebView.postMessage(JSON.stringify(
-      { type: 'click', lat: e.latlng.lat, lng: e.latlng.lng }));
-  });
+      { type: 'click', lat: lat, lng: lng }));
+  }
+  map.on('click', function (e) { sendTap(e.latlng.lat, e.latlng.lng); });
+  // Long-press also flags — survives Android WebView tap-detection quirks
+  map.on('contextmenu', function (e) { sendTap(e.latlng.lat, e.latlng.lng); });
 
   window.ReactNativeWebView.postMessage(JSON.stringify({ type: 'ready' }));
 })();
@@ -164,12 +186,13 @@ const LeafletMap = React.forwardRef<LeafletMapHandle, {
   height?: number;
   markers?: LeafMarker[];
   polylines?: LeafPolyline[];
+  polygons?: LeafPolygon[];
   onMapPress?: (lat: number, lng: number) => void;
   center?: { lat: number; lng: number };
   zoom?: number;
   fit?: boolean;
 }>(function LeafletMap({
-  height, markers = [], polylines = [], onMapPress,
+  height, markers = [], polylines = [], polygons = [], onMapPress,
   center = { lat: 29.85, lng: 70.45 }, zoom = 9, fit = false,
 }, ref) {
   const webRef = useRef<WebView>(null);
@@ -182,15 +205,34 @@ const LeafletMap = React.forwardRef<LeafletMapHandle, {
     []);   // HTML is fixed at mount — center/zoom are only the initial view
 
   const payload = useMemo(
-    () => `window.__render && window.__render(${JSON.stringify({ markers, polylines, fit })}); true;`,
-    [markers, polylines, fit]);
+    () => `window.__render && window.__render(${JSON.stringify({ markers, polylines, polygons, fit })}); true;`,
+    [markers, polylines, polygons, fit]);
+
+  // Track readiness so a center prop set before the map engine loads is
+  // applied as soon as (re)inject runs — e.g. a prefilled geocoded location.
+  const readyRef = useRef(false);
+  const centerRef = useRef(center);
+  centerRef.current = center;
+  const zoomRef = useRef(zoom);
+  zoomRef.current = zoom;
 
   const inject = useCallback(() => {
-    // Invalidate first so Leaflet knows the real container size, then render.
+    // Invalidate + render markers. Camera is NOT touched here — re-injects
+    // happen on every data change and must not yank the view back.
     webRef.current?.injectJavaScript(
-      `window.__invalidate && window.__invalidate(); window.__render && window.__render(${JSON.stringify({ markers, polylines, fit })}); true;`
+      `window.__invalidate && window.__invalidate(); ` +
+      `window.__render && window.__render(${JSON.stringify({ markers, polylines, polygons, fit })}); true;`
     );
-  }, [markers, polylines, fit]);
+  }, [markers, polylines, polygons, fit]);
+
+  // Re-center whenever the caller changes center after mount (geocode results).
+  React.useEffect(() => {
+    if (readyRef.current) {
+      webRef.current?.injectJavaScript(
+        `window.__flyTo && window.__flyTo(${center.lat}, ${center.lng}, ${zoom}); true;`
+      );
+    }
+  }, [center.lat, center.lng, zoom]);
 
   useImperativeHandle(ref, () => ({
     flyTo(lat, lng, z = 13) {
@@ -207,7 +249,17 @@ const LeafletMap = React.forwardRef<LeafletMapHandle, {
     try {
       const msg = JSON.parse(e.nativeEvent.data);
       if (msg.type === 'click' && onMapPress) onMapPress(msg.lat, msg.lng);
-      else if (msg.type === 'ready') inject();
+      else if (msg.type === 'ready') {
+        const first = !readyRef.current;
+        readyRef.current = true;
+        inject();
+        if (first) {
+          const c = centerRef.current;
+          webRef.current?.injectJavaScript(
+            `window.__flyTo && window.__flyTo(${c.lat}, ${c.lng}, ${zoomRef.current}); true;`
+          );
+        }
+      }
     } catch { /* ignore malformed messages */ }
   }, [onMapPress, inject]);
 

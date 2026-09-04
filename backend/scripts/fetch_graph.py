@@ -16,10 +16,17 @@ OUT = Path(__file__).resolve().parent.parent / "database" / "geodata" / "demo_co
 # Smaller overlapping segments compose into the full corridor — big single
 # queries are what Overpass instances choke on.
 SEGMENTS = [
-    (30.25, 29.85, 70.85, 70.05),   # DG Khan
-    (29.95, 29.65, 70.70, 70.05),   # mid corridor
-    (29.75, 29.45, 70.60, 70.05),   # lower corridor
-    (29.55, 28.95, 70.55, 70.00),   # Rajanpur
+    # DG Khan -> Rajanpur corridor (the demo route)
+    (30.25, 29.85, 70.85, 70.05),
+    (29.95, 29.65, 70.70, 70.05),
+    (29.75, 29.45, 70.60, 70.05),
+    (29.55, 28.95, 70.55, 70.00),
+    # Lahore region (field testing area) - split into quadrants; the combined
+    # query is too large and dies mid-download on every Overpass mirror.
+    (31.75, 31.52, 74.65, 74.25),   # Lahore NW (Shahdra, Kot Abdul Malik)
+    (31.52, 31.30, 74.65, 74.25),   # Lahore SW
+    (31.75, 31.52, 74.25, 73.90),   # Lahore NE
+    (31.52, 31.30, 74.25, 73.90),   # Lahore SE
 ]
 
 ENDPOINTS = [

@@ -52,3 +52,21 @@ yarn-error.*
 # generated native folders
 /ios
 /android
+# ===== MADAD additions =====
+backend/.env
+mobile/.env
+!.env.example
+backend/.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+*.log
+*.tmp
+Thumbs.db
+desktop.ini
+.vscode/
+.idea/
+android/
+ios/
+*.apk
+*.aab
+*.ipa

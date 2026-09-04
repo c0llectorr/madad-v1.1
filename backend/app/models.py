@@ -123,6 +123,7 @@ class Dispatch(Base):
     site_id: Mapped[int] = mapped_column(ForeignKey("sites.id", ondelete="CASCADE"), nullable=False)
     depot_id: Mapped[int] = mapped_column(ForeignKey("depots.id", ondelete="CASCADE"), nullable=False)
     dispatched_by: Mapped[int | None] = mapped_column(ForeignKey("users.id"))
+    assigned_to: Mapped[int | None] = mapped_column(ForeignKey("users.id"))
     resources_loaded: Mapped[list] = mapped_column(JSONB, nullable=False)
     route_geojson: Mapped[dict | None] = mapped_column(JSONB)
     distance_km: Mapped[float | None] = mapped_column(Float)

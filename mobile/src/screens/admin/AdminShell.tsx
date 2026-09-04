@@ -2,15 +2,17 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { ActivityIndicator, Pressable, StyleSheet, TextInput, Text, View, ScrollView } from 'react-native';
 import { KeyboardAwareScrollView } from 'react-native-keyboard-aware-scroll-view';
 import { api, LoginResponse } from '../../api';
-import LeafletMap, { LeafletMapHandle } from '../../LeafletMap';
+import LeafletMap, { LeafMarker, LeafPolyline, LeafPolygon, LeafletMapHandle } from '../../LeafletMap';
+import { convexHull } from '../coordinator/CoordinatorShell';
 import {
   AppBar, BottomNav, Button, Card, Err, Field, Loading, PillButton,
-  Screen, SectionTitle, StatusChip, NavTab,
+  Screen, SectionTitle, StatusChip, NavTab, Chip,
 } from '../../ui';
 import { C, T, RADIUS } from '../../theme';
 
 const NAV: NavTab[] = [
   { key: 'resources', label: 'Resources', icon: '▦' },
+  { key: 'map', label: 'Map', icon: '🗺' },
   { key: 'centers', label: 'Centers', icon: '◎' },
   { key: 'accounts', label: 'Accounts', icon: '👤' },
   { key: 'settings', label: 'Settings', icon: '⚙' },
@@ -43,6 +45,7 @@ export default function AdminShell({ session, onLogout }: { session: LoginRespon
       <AppBar title="MADAD" right={<PressableBell />} />
       <View style={{ flex: 1 }}>
         {tab === 'resources' && <ResourcesTab centers={centers} key2={key} />}
+        {tab === 'map' && <AdminMapTab centers={centers} />}
         {tab === 'centers' && <CentersTab centers={centers} key2={key} refresh={refresh} go={setView} />}
         {tab === 'accounts' && <AccountsTab key2={key} refresh={refresh} go={setView} />}
         {tab === 'settings' && <SettingsTab session={session} onLogout={onLogout} />}
@@ -260,10 +263,14 @@ function AccountsTab({ key2, refresh, go }: {
   go: (v: { name: 'addCenter' | 'addCoordinator' }) => void;
 }) {
   const [list, setList] = useState<Coordinator[]>([]);
+  const [centers, setCenters] = useState<Center[]>([]);
   const [err, setErr] = useState<string | null>(null);
+  const [search, setSearch] = useState('');
+  const [centerFilter, setCenterFilter] = useState<number | 'all'>('all');
 
   useEffect(() => {
     api<Coordinator[]>('/accounts/coordinators').then(setList).catch(e => setErr(e.message));
+    api<Center[]>('/centers').then(setCenters).catch(() => {});
   }, [key2]);
 
   const deactivate = async (id: number) => {
@@ -272,12 +279,45 @@ function AccountsTab({ key2, refresh, go }: {
     catch (e: any) { setErr(e.message); }
   };
 
+  const centerOf = (id: number | null) => centers.find(c => c.id === id);
+  const filtered = list.filter(u => {
+    if (centerFilter !== 'all' && u.center_id !== centerFilter) return false;
+    if (!search.trim()) return true;
+    const q = search.trim().toLowerCase();
+    const cn = centerOf(u.center_id);
+    return u.username.toLowerCase().includes(q)
+      || String(u.user_id) === q
+      || (cn && (cn.name.toLowerCase().includes(q) || cn.code.toLowerCase().includes(q)));
+  });
+
   return (
     <View style={{ flex: 1 }}>
       <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: 16, paddingBottom: 16 }}>
         <SectionTitle title="Manage Coordinators" sub="Operational accounts assigned to support centers." />
         <Err msg={err} />
-        {list.map(u => (
+
+        <View style={cs.searchWrap}>
+          <Text style={{ color: C.outline, marginRight: 8 }}>{'🔍'}</Text>
+          <TextInput style={{ flex: 1, color: C.onSurface, fontSize: 16, paddingVertical: 8 }}
+            value={search} onChangeText={setSearch}
+            placeholder="Search by name, ID, or center…" placeholderTextColor={C.outline} />
+        </View>
+
+        <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginBottom: 12 }}>
+          <PillButton title="All Centers" kind={centerFilter === 'all' ? 'primary' : 'outlined'}
+                      onPress={() => setCenterFilter('all')} />
+          {centers.map(c => (
+            <PillButton key={c.id} title={c.code} kind={centerFilter === c.id ? 'primary' : 'outlined'}
+                        onPress={() => setCenterFilter(c.id)} />
+          ))}
+        </View>
+
+        <Text style={[T.labelSm, { color: C.onSurfaceVariant, marginBottom: 8 }]}>
+          Showing {filtered.length} of {list.length} coordinators
+        </Text>
+
+        {filtered.map(u => {
+          return (
           <Card key={u.user_id} barColor={u.is_active ? C.primary : C.warning}>
             <View style={{ flexDirection: 'row', alignItems: 'center' }}>
               <View style={cs.avatar}>
@@ -291,14 +331,23 @@ function AccountsTab({ key2, refresh, go }: {
               </View>
               <StatusChip label={u.is_active ? 'Active' : 'Deactivated'} tone={u.is_active ? 'ok' : 'warning'} />
             </View>
+            {(() => {
+              const cn = centerOf(u.center_id);
+              return cn ? (
+                <Text style={[T.labelSm, { color: C.onSurfaceVariant, marginTop: 4 }]}>
+                  ◎ {cn.name} ({cn.code}) · {cn.region}
+                </Text>
+              ) : null;
+            })()}
             {u.is_active && (
               <View style={{ marginTop: 12 }}>
                 <Button title="Remove" onPress={() => deactivate(u.user_id)} kind="critical" icon="🗑" />
               </View>
             )}
           </Card>
-        ))}
-        {list.length === 0 && <Text style={[T.bodyMd, { color: C.onSurfaceVariant }]}>No coordinators yet.</Text>}
+        );
+      })}
+        {filtered.length === 0 && <Text style={[T.bodyMd, { color: C.onSurfaceVariant }]}>No coordinators match your search.</Text>}
       </ScrollView>
 
       {/* Anchored action bar */}
@@ -593,3 +642,156 @@ const cs = StyleSheet.create({
     fontWeight: '600' as const,
   },
 });
+
+/* ================= ADMIN MAP (nationwide) ================= */
+interface SiteRow { id: number; center_id: number; report_id?: number | null; location_name: string; lat: number; lng: number; estimated_population: number; needs: string[]; urgency_flags: string[]; severity: string | null; confidence: string; priority_score: number | null; status: string }
+interface DamageRow { id: number; center_id: number; lat: number; lng: number; reason: string | null; edge_geometry: any; reported_at: string }
+
+function AdminMapTab({ centers }: { centers: Center[] }) {
+  const [province, setProvince] = useState<string>('All Pakistan');
+  const [sites, setSites] = useState<SiteRow[]>([]);
+  const [damaged, setDamaged] = useState<DamageRow[]>([]);
+  const [depotsByCenter, setDepotsByCenter] = useState<Record<number, Depot[]>>({});
+  const [err, setErr] = useState<string | null>(null);
+  const [layers, setLayers] = useState(
+    { sites: true, depots: true, damage: true, flood: true, centers: true });
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const [s, d] = await Promise.all([
+          api<SiteRow[]>('/sites'),
+          api<DamageRow[]>('/roads/damaged'),
+        ]);
+        setSites(s); setDamaged(d);
+        const result: Record<number, Depot[]> = {};
+        for (const c of centers) {
+          result[c.id] = await api<Depot[]>(`/depots?center_id=${c.id}`);
+        }
+        setDepotsByCenter(result);
+      } catch (e: any) { setErr(e.message); }
+    })();
+  }, [centers]);
+
+  const selectedCenter = province === 'All Pakistan'
+    ? null : centers.find(c => c.region === province || c.name.includes(province));
+
+  const allDepots = Object.entries(depotsByCenter).flatMap(([cid, ds]) =>
+    ds.map(d => ({ ...d, center_id: Number(cid) })));
+
+  const inScope = <T extends { center_id: number }>(rows: T[]) =>
+    selectedCenter ? rows.filter(r => r.center_id === selectedCenter.id) : rows;
+
+  const vDepots = inScope(allDepots);
+  const vSites = inScope(sites).filter(s => s.lat !== 0 || s.lng !== 0);
+  const vDamaged = inScope(damaged);
+  const vCenters = selectedCenter ? [selectedCenter] : centers;
+
+  const markers: LeafMarker[] = [
+    ...(layers.centers ? vCenters.map(cn => ({
+      id: `c${cn.id}`, lat: cn.lat, lng: cn.lng,
+      title: cn.name, snippet: `Support Center · ${cn.code}`,
+      color: C.secondary, label: 'C',
+    })) : []),
+    ...(layers.depots ? vDepots.map(d => ({
+      id: `d${d.id}`, lat: d.lat, lng: d.lng, title: d.name, snippet: 'Depot',
+      color: '#1565C0', label: 'D',
+    })) : []),
+    ...(layers.sites ? vSites.map(s => ({
+      id: `s${s.id}`, lat: s.lat, lng: s.lng,
+      title: s.location_name,
+      snippet: `~${s.estimated_population} people · ${s.status}`,
+      color: '#E65100', label: 'R',
+    })) : []),
+    ...(layers.damage ? vDamaged.map(dg => ({
+      id: `dg${dg.id}`, lat: dg.lat, lng: dg.lng,
+      title: '⚠️ Road Blocked', snippet: dg.reason || 'Damage reported',
+      color: C.critical, label: '!',
+    })) : []),
+  ];
+
+  const floodHull = convexHull(vSites.map(s => ({ lat: s.lat, lng: s.lng })));
+  const floodPolygons: LeafPolygon[] = layers.flood && floodHull.length >= 3
+    ? [{ id: 'floodzone', coords: floodHull, color: C.primary, fillOpacity: 0.12, dashed: true }]
+    : [];
+  const affectedPeople = vSites.reduce((sum, s) => sum + (s.estimated_population || 0), 0);
+  const criticalCount = vSites.filter(s => s.severity === 'critical' || s.severity === 'high').length;
+
+  const provinces = ['All Pakistan', ...centers.map(c => c.region ?? c.name)];
+
+  return (
+    <View style={{ flex: 1 }}>
+      {/* Map fills all available space — OUTSIDE any ScrollView so pinch/pan work */}
+      <View style={{ flex: 1, position: 'relative', minHeight: 200 }}>
+        <LeafletMap
+          markers={markers}
+          polygons={floodPolygons}
+          fit={markers.length > 0 || floodPolygons.length > 0}
+          center={selectedCenter
+            ? { lat: selectedCenter.lat, lng: selectedCenter.lng }
+            : { lat: 30.3769, lng: 69.3451 }}
+          zoom={selectedCenter ? 6 : 5}
+        />
+        {/* Flood impact summary overlay */}
+        {layers.flood && vSites.length > 0 && (
+          <View style={{ position: 'absolute', left: 12, right: 12, bottom: 12 }}>
+            <Card barColor={C.primary}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+                <Text style={[T.titleLg, { color: C.onSurface }]}>🌊 Flood Impact Zone</Text>
+                <StatusChip label={`${vSites.length} sites`} tone="info" />
+              </View>
+              <Text style={[T.bodyMd, { color: C.onSurfaceVariant, marginTop: 4 }]}>
+                ~{affectedPeople.toLocaleString()} people
+                {criticalCount > 0 ? ` · ${criticalCount} high/critical` : ''}
+              </Text>
+            </Card>
+          </View>
+        )}
+      </View>
+
+      {/* Controls panel — fixed height, scrollable, doesn't steal map gestures */}
+      <KeyboardAwareScrollView
+        style={{ maxHeight: 330 }}
+        contentContainerStyle={{ padding: 16, paddingBottom: 40 }}
+        keyboardShouldPersistTaps="handled"
+        enableOnAndroid
+        nestedScrollEnabled
+      >
+        <Err msg={err} />
+
+        <Card>
+          <Text style={[T.titleLg, { color: C.onSurface }]}>Map Layers</Text>
+          <View style={{ flexDirection: 'row', flexWrap: 'wrap', marginTop: 10 }}>
+            <Chip label="Relief Sites" selected={layers.sites} color='#E65100' onPress={() => setLayers(l => ({ ...l, sites: !l.sites }))} />
+            <Chip label="Depots" selected={layers.depots} color='#1565C0' onPress={() => setLayers(l => ({ ...l, depots: !l.depots }))} />
+            <Chip label="Road Damage" selected={layers.damage} color={C.critical} onPress={() => setLayers(l => ({ ...l, damage: !l.damage }))} />
+            <Chip label="Flood Zone" selected={layers.flood} color={C.primary} onPress={() => setLayers(l => ({ ...l, flood: !l.flood }))} />
+            <Chip label="Centers" selected={layers.centers} color={C.secondary} onPress={() => setLayers(l => ({ ...l, centers: !l.centers }))} />
+          </View>
+        </Card>
+
+        <Card>
+          <Text style={[T.titleLg, { color: C.onSurface }]}>Filter by Province</Text>
+          <View style={{ flexDirection: 'row', flexWrap: 'wrap', marginTop: 10 }}>
+            {provinces.map(pr => (
+              <Chip key={pr} label={pr === 'Islamabad Capital Territory' ? 'Federal (ISB)' : pr}
+                    selected={province === pr} color={C.secondary}
+                    onPress={() => setProvince(pr)} />
+            ))}
+          </View>
+        </Card>
+
+        <Card barColor={C.primary}>
+          <Text style={[T.titleLg, { color: C.onSurface }]}>{province}</Text>
+          <Text style={[T.bodyMd, { color: C.onSurfaceVariant, marginTop: 6 }]}>
+            {vCenters.length} support center{vCenters.length !== 1 ? 's' : ''} ·
+            {' '}{vDepots.length} depot{vDepots.length !== 1 ? 's' : ''} ·
+            {' '}{vSites.length} flood-affected site{vSites.length !== 1 ? 's' : ''}
+            {vSites.length > 0 ? ` (~${affectedPeople.toLocaleString()} people)` : ''} ·
+            {' '}{vDamaged.length} road damage report{vDamaged.length !== 1 ? 's' : ''}
+          </Text>
+        </Card>
+      </KeyboardAwareScrollView>
+    </View>
+  );
+}

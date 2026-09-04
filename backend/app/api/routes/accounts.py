@@ -33,7 +33,8 @@ def list_coordinators(center_id: int | None = None, db: Session = Depends(get_db
     if center_id:
         q = q.filter(User.center_id == center_id)
     return [{"user_id": u.id, "username": u.username, "center_id": u.center_id,
-             "is_active": u.is_active, "created_at": u.created_at} for u in q.all()]
+             "is_active": u.is_active,
+             "created_at": u.created_at} for u in q.all()]
 
 
 @router.patch("/coordinators/{user_id}/deactivate")
