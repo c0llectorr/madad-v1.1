@@ -4,8 +4,7 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { loadStoredToken, setToken, LoginResponse } from './src/api';
 import OnboardingScreen from './src/screens/OnboardingScreen';
 import LoginScreen from './src/screens/LoginScreen';
-import AdminShell from './src/screens/admin/AdminShell';
-import CoordinatorShell from './src/screens/coordinator/CoordinatorShell';
+import RoleRouter from './src/navigation/RoleRouter';
 import { C } from './src/theme';
 
 type Session = LoginResponse | null | 'loading' | 'onboarding';
@@ -32,9 +31,7 @@ export default function App() {
         ? <OnboardingScreen onDone={() => setSession(null)} />
         : session === null
           ? <LoginScreen onLogin={setSession} />
-          : session.role === 'administrator'
-            ? <AdminShell session={session} onLogout={logout} />
-            : <CoordinatorShell session={session} onLogout={logout} />}
+          : <RoleRouter session={session} onLogout={logout} />}
     </SafeAreaProvider>
   );
 }

@@ -1,7 +1,7 @@
 import React from 'react';
 import { StyleSheet, Text, View, StatusBar, Pressable } from 'react-native';
 import { C, T } from '../theme';
-import { Button } from '../ui';
+import { Button } from '../components';
 
 export default function OnboardingScreen({ onDone }: { onDone: () => void }) {
   return (

@@ -74,8 +74,7 @@ npx expo start                # press a for Android emulator, or scan QR with Ex
 7. Trigger replan — site ranks recompute deterministically from the priority formula
 
 ## Project layout
-
-```bash
+```
 backend/
 ├── app/
 │   ├── main.py               # FastAPI app, graph-load-on-startup
@@ -85,15 +84,18 @@ backend/
 │   ├── schemas/              # pydantic request models
 │   └── db/session.py
 ├── database/geodata/         # demo_corridor.graphml (generated, committed)
-├── postgres/schema.sql       # verbatim MADAD_DATABASE.md schema
+├── postgres/                 # schema.sql + seed_dummy.sql (25 coordinators, 5 centers, 25 depots)
 ├── scripts/                  # fetch_graph.py, bootstrap_admin.py
 └── tests/
-mobile/
-├── App.tsx                   # role-based routing (admin vs coordinator)
-└── src/
-    ├── api.ts                # fetch client with Bearer token + AsyncStorage
-    ├── theme.ts              # the 4-color palette
-    ├── ui.tsx                # shared components
-    └── screens/              # LoginScreen, AdminScreen, CoordinatorScreen (map/reports/plan/dispatches + driver mode)
+mobile/src/
+├── components/               # reusable primitives (Button, Field, SearchBox, FilterChips,
+│                             #   Card, Chip, AppBar, Screen, BottomNav, Fab, Stepper…)
+├── navigation/               # RoleRouter + per-role tab configs (coordinatorNav, adminNav)
+├── screens/auth|coordinator|admin/   # ONE FILE PER SCREEN + per-role navigators
+├── types.ts · utils/ · theme.ts · api.ts · LeafletMap.tsx
+docker-compose.yml            # postgres:16 on 5433
+```
+Frontend architecture notes: see `FRONTEND_MAINTENANCE.md`.
+
 docker-compose.yml            # postgres:16 on 5433
 ```
