@@ -65,3 +65,15 @@ nohup.out
 .zcode/
 cache/
 build/
+
+# ---- Process docs & design sources (not needed to run the app) ----
+STATUS.md
+MOBILE_TESTING_GUIDE.md
+FRONTEND_MAINTENANCE.md
+DRIVER_FEATURE_PLAN.md
+WRITEUP.md
+MADAD_UI/
+MADAD NEW UI/
+mobile/AGENTS.md
+mobile/CLAUDE.md
+mobile/.claude/
