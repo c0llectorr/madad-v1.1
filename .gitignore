@@ -1,72 +1,67 @@
-node_modules/
-__pycache__/
+# ============================================================
+# MADAD — consolidated .gitignore
+# ============================================================
+
+# ---- Secrets & environment (never commit) ----
 .env
-.md_files/
-.zcode/
-.pytest_cache/
-.venv/
-cache/
-.expo/
+.env.*
+!.env.example
+backend/.env
+mobile/.env
+
+# ---- Python ----
+__pycache__/
+*.py[cod]
 venv/
-dist/
-build/
+.venv/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
 
-# Learn more https://docs.github.com/en/get-started/getting-started-with-git/ignoring-files
-
-# dependencies
+# ---- Node / Expo / React Native ----
 node_modules/
-
-# Expo
 .expo/
 dist/
 web-build/
 expo-env.d.ts
-
-# Native
-.kotlin/
-*.orig.*
-*.jks
-*.p8
-*.p12
-*.key
-*.mobileprovision
-
-# Metro
 .metro-health-check*
-
-# debug
 npm-debug.*
 yarn-debug.*
 yarn-error.*
-
-# macOS
-.DS_Store
-*.pem
-
-# local env files
-.env.local
-
-# typescript
 *.tsbuildinfo
 
-# generated native folders
-/ios
-/android
-# ===== MADAD additions =====
-backend/.env
-mobile/.env
-!.env.example
-backend/.pytest_cache/
-.mypy_cache/
-.ruff_cache/
-*.log
-*.tmp
-Thumbs.db
-desktop.ini
-.vscode/
-.idea/
+# ---- Native build artifacts ----
 android/
 ios/
+.kotlin/
 *.apk
 *.aab
 *.ipa
+*.jks
+*.keystore
+*.mobileprovision
+*.p8
+*.p12
+*.pem
+*.orig.*
+
+# ---- OS junk ----
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# ---- IDE ----
+.vscode/
+.idea/
+*.swp
+
+# ---- Logs & temp ----
+*.log
+*.tmp
+nohup.out
+
+# ---- Project-specific ----
+.md_files/
+.zcode/
+cache/
+build/

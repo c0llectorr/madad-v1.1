@@ -4,7 +4,7 @@ from sqlalchemy.orm import Session
 
 from app.api.deps import require_role, get_current_user
 from app.db.session import get_db
-from app.models import Dispatch, DispatchReroute, DamagedRoad, Depot, Site, User
+from app.models import Dispatch, DispatchReroute, DamagedRoad, Depot, Site, User, Driver
 from app.schemas import DispatchCreate, DispatchStatusUpdate, RerouteRequest
 from app.services.routing import (compute_route, get_damaged_edge_pairs, path_to_geojson, direct_fallback)
 
@@ -89,7 +89,7 @@ def update_status(dispatch_id: int, payload: DispatchStatusUpdate, db: Session =
 
 @router.post("/{dispatch_id}/reroute")
 async def reroute_dispatch(dispatch_id: int, payload: RerouteRequest, db: Session = Depends(get_db),
-                           user: dict = Depends(require_role("coordinator"))):
+                           user: dict = Depends(require_role("coordinator", "driver"))):
     dispatch = db.query(Dispatch).get(dispatch_id)
     if not dispatch:
         raise HTTPException(status_code=404, detail="Dispatch not found")

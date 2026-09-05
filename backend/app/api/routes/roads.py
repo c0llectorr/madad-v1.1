@@ -14,6 +14,16 @@ router = APIRouter(prefix="/api", tags=["roads"])
 @router.post("/roads/damage", status_code=201)
 async def report_damage(payload: DamageReport, db: Session = Depends(get_db),
                         user: dict = Depends(require_role("coordinator", "driver"))):
+    # Drivers have no center of their own — derive it from their depot so the
+    # flag lands in the right center regardless of what the client sent.
+    if user["role"] == "driver":
+        from app.models import Driver
+        driver = db.query(Driver).filter(Driver.user_id == user["user_id"]).first()
+        if not driver:
+            raise HTTPException(status_code=404, detail="Driver profile not found")
+        depot = db.query(Depot).get(driver.depot_id)
+        payload.center_id = depot.center_id
+
     G = get_graph()
     edge_u, edge_v, edge_key = _nearest_edges(G, payload.lng, payload.lat)
     edge_data = G.get_edge_data(edge_u, edge_v, edge_key)
