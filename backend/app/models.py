@@ -124,6 +124,8 @@ class Dispatch(Base):
     depot_id: Mapped[int] = mapped_column(ForeignKey("depots.id", ondelete="CASCADE"), nullable=False)
     dispatched_by: Mapped[int | None] = mapped_column(ForeignKey("users.id"))
     assigned_to: Mapped[int | None] = mapped_column(ForeignKey("users.id"))
+    plan_id: Mapped[int | None] = mapped_column(ForeignKey("plans.id"))
+    driver_id: Mapped[int | None] = mapped_column(ForeignKey("drivers.id"))
     resources_loaded: Mapped[list] = mapped_column(JSONB, nullable=False)
     route_geojson: Mapped[dict | None] = mapped_column(JSONB)
     distance_km: Mapped[float | None] = mapped_column(Float)

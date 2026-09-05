@@ -13,7 +13,7 @@ from app.schemas import PlanItemsUpdate
 from app.services.routing import (compute_route, direct_fallback,
                                   get_damaged_edge_pairs, path_to_geojson)
 
-router = APIRouter(prefix="/plans", tags=["plans"])
+router = APIRouter(prefix="/api/plans", tags=["plans"])
 
 
 def _plan_dict(db: Session, plan: Plan) -> dict:

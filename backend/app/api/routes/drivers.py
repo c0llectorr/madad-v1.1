@@ -6,7 +6,7 @@ from app.api.deps import require_role
 from app.db.session import get_db
 from app.models import Depot, Dispatch, Driver, PlanItem, Site, User
 
-router = APIRouter(prefix="/drivers", tags=["drivers"])
+router = APIRouter(prefix="/api/drivers", tags=["drivers"])
 
 
 @router.get("")
