@@ -108,104 +108,84 @@ MADAD addresses each of these directly (see §3).
 
 ---
 
-# 5. Repository Layout
+## 5. Repository Layout — only what's needed to run the app
+
+Everything below is **required to run MADAD** (plus `Madad.md` itself for reference). Process documents, design sources, caches (`node_modules/`, `__pycache__/`), the Python `venv/`, and environment secrets (`.env`) are **not** committed — `.gitignore` excludes them, and §13 explains how to create the secrets from the shipped examples.
 
 ```
-madad v1.1/
+madad/
+├── .gitignore                        # excludes secrets, caches, venv, node_modules, docs
+├── .gitattributes                    # Git LFS tracking for *.graphml (the 208 MB road graph)
+├── docker-compose.yml                # PostgreSQL 16 → host port 5433
+├── Madad.md                          # this documentation
+│
 ├── backend/
+│   ├── .env.example  ← ① copy to backend/.env and fill in the API keys:
+│   │        DATABASE_URL, GROQ_API_KEY (AI extraction + plans),
+│   │        GOOGLE_MAPS_API_KEY (geocoding), JWT_SECRET
+│   ├── requirements.txt              # pinned Python dependencies
 │   ├── app/
-│   │   ├── main.py                  # FastAPI app factory; router registration; lifespan (graph load)
-│   │   ├── models.py                # ALL SQLAlchemy ORM models (single file, deliberately)
+│   │   ├── main.py                   # FastAPI app; registers all routers; loads the road graph
+│   │   ├── models.py                 # all 11 SQLAlchemy ORM models
 │   │   ├── api/
-│   │   │   ├── deps.py              # get_current_user, require_role (JWT auth + RBAC)
-│   │   │   └── routes/              # 10 route modules — one per domain (see §8)
-│   │   │       ├── auth.py          # login, me
-│   │   │       ├── accounts.py      # user creation (coordinator/driver), list, deactivate
-│   │   │       ├── centers.py       # support centers CRUD (read for all roles)
-│   │   │       ├── depots.py        # depots + inventory adjustment
-│   │   │       ├── reports.py       # report ingestion, AI extraction, review/confirm
-│   │   │       ├── sites.py         # affected sites list + manual driver assignment
-│   │   │       ├── plan.py          # legacy plan/generate (delegates) + replan
-│   │   │       ├── plans.py         # plan lifecycle: items, finalize, assign-driver
-│   │   │       ├── roads.py         # damage reports + damage-aware route preview
-│   │   │       └── dispatch.py      # dispatch create/status/reroute/list + assignment
-│   │   ├── core/
-│   │   │   ├── config.py            # pydantic-settings: all env vars, paths
-│   │   │   └── security.py          # bcrypt hash/verify + JWT create
-│   │   ├── services/                # domain logic (no HTTP concerns)
-│   │   │   ├── routing.py           # graph load-once, damage-aware paths, fallbacks
-│   │   │   ├── extraction/          # base.py (tool schema+ABC), groq/gemini/qwen providers
-│   │   │   ├── planning_ai.py       # AI resource-plan generation + heuristic fallback
-│   │   │   ├── geocoding.py         # Google Geocoding v4 w/ Pakistan bbox filter
-│   │   │   ├── prioritization.py    # deterministic priority score + reasoning strings
-│   │   │   └── replanning.py        # rank recomputation for a center
-│   │   ├── schemas/__init__.py      # pydantic request models
-│   │   └── db/session.py            # engine + SessionLocal + get_db dependency
+│   │   │   ├── deps.py               # JWT auth + require_role() permission gates
+│   │   │   └── routes/               # 10 modules = the API surface (§8):
+│   │   │       auth.py accounts.py centers.py depots.py reports.py sites.py
+│   │   │       plan.py plans.py roads.py dispatch.py
+│   │   ├── core/config.py            # pydantic-settings (reads backend/.env)
+│   │   ├── core/security.py          # bcrypt hashing + JWT creation
+│   │   ├── schemas/__init__.py       # pydantic request models
+│   │   ├── db/session.py             # SQLAlchemy engine + session dependency
+│   │   └── services/                 # domain logic:
+│   │       routing.py                #   road-graph singleton, damage-aware paths
+│   │       extraction/               #   AI report extraction (groq/gemini/qwen)
+│   │       planning_ai.py            #   AI resource-plan generation
+│   │       geocoding.py              #   Google Geocoding v4 (Pakistan filter)
+│   │       prioritization.py         #   deterministic priority score
+│   │       replanning.py             #   site re-ranking
 │   ├── database/geodata/
-│   │   └── demo_corridor.graphml    # 208 MB committed OSM graph (Git LFS!) — see §13.3
+│   │   └── demo_corridor.graphml     # ② the 208 MB OSM road graph (via Git LFS) — REQUIRED
 │   ├── postgres/
-│   │   ├── schema.sql               # authoritative DDL (tables, constraints, indexes)
-│   │   ├── seed_dummy.sql           # 5 centers, 25 coordinators, 25 depots, 125 stock rows
-│   │   └── seed_drivers.sql         # 250 drivers (10/depot)
-│   ├── scripts/
-│   │   ├── fetch_graph.py           # OSMnx multi-mirror graph fetcher (5 segments + Lahore quadrants)
-│   │   └── bootstrap_admin.py       # creates the first administrator
-│   ├── tests/
-│   │   ├── test_prioritization.py   # scoring math
-│   │   ├── test_routing.py          # damage exclusion, detours, no-path, GeoJSON order
-│   │   └── smoke_chain.py           # 15-step live end-to-end API chain
-│   ├── requirements.txt
-│   └── .env                         # secrets (NOT committed)
-├── mobile/
-│   ├── App.tsx                      # session state: onboarding → login → RoleRouter
-│   ├── app.json                     # Expo config
-│   ├── .env                         # EXPO_PUBLIC_API_URL (NOT committed)
-│   └── src/
-│       ├── api.ts                   # fetch client: base URL, Bearer token, AsyncStorage
-│       ├── theme.ts                 # Material-3 token set (colors, type scale, radii)
-│       ├── types.ts                 # shared TS interfaces (Site, PlanT, DriverRow, …)
-│       ├── LeafletMap.tsx           # the map engine (WebView + Leaflet) — §10
-│       ├── utils/
-│       │   ├── geo.ts               # convexHull, haversineKm, nearestDepot
-│       │       └── constants.ts     # NEED/FLAG/SEVERITY label↔API maps
-│       ├── components/              # 14 generic UI primitives (zero business logic)
-│       │   ├── index.ts             # barrel
-│       │   ├── Button.tsx, PillButton.tsx, Field.tsx, SearchBox.tsx, FilterChips.tsx,
-│       │   ├── Card.tsx, Chip.tsx (Chip+StatusChip), AppBar.tsx, Screen.tsx,
-│       │   ├── BottomNav.tsx (+NavTab type), Fab.tsx, Stepper.tsx, feedback.tsx
-│       ├── navigation/
-│       │   ├── RoleRouter.tsx       # session.role → one of three navigators
-│       │   ├── coordinatorNav.ts    # 5 tabs (role-scoped config)
-│       │   └── adminNav.ts          # 5 tabs (role-scoped config)
-│       └── screens/
-│           ├── OnboardingScreen.tsx
-│           ├── LoginScreen.tsx
-│           ├── coordinator/
-│           │   ├── CoordinatorNavigator.tsx   # tabs + modal stack + data fetches
-│           │   ├── HomePage.tsx  ReportsPage.tsx  DispatchPage.tsx
-│           │   ├── MapPage.tsx   ProfilePage(in navigator)
-│           │   ├── components/PlaceSearch.tsx  AssignCoordinatorList.tsx
-│           │   └── modals/ NewReportModal.tsx  PlanEditorModal.tsx
-│           │              AssignDriverModal.tsx  ActiveRouteModal.tsx  AssignSiteModal.tsx
-│           ├── admin/
-│           │   ├── AdminNavigator.tsx
-│           │   ├── ResourcesPage.tsx  MapPage.tsx  CentersPage.tsx
-│           │   ├── AccountsPage.tsx  SettingsPage.tsx  adminStyles.ts
-│           │   └── modals/ AddCenterModal.tsx  AddCoordinatorModal.tsx
-│           └── driver/
-│               └── DriverNavigator.tsx        # driver tabs: Dispatches/Map/Profile
-├── docker-compose.yml               # postgres:16 on host port 5433
-├── .gitignore
-├── DRIVER_FEATURE_PLAN.md · FRONTEND_MAINTENANCE.md · STATUS.md · WRITEUP.md
-└── Madad.md                         # this document
+│   │   ├── schema.sql                # ③ full DDL — auto-applied on first container start
+│   │   ├── seed_dummy.sql            # ④ demo dataset (5 centers, 25 coordinators, 25 depots, stock)
+│   │   └── seed_drivers.sql          # ⑤ 250 drivers (10 per depot)
+│   └── scripts/
+│       ├── bootstrap_admin.py        # ⑥ creates the first administrator account
+│       └── fetch_graph.py            # ⑦ regenerates demo_corridor.graphml (if not via LFS)
+│
+└── mobile/
+    ├── .env.example  ← ⑧ copy to mobile/.env and set EXPO_PUBLIC_API_URL
+    │        (http://<PC-LAN-IP>:8000/api — connects the app to the backend)
+    ├── app.json                      # Expo config (name, icons, Android map key slot)
+    ├── index.ts · tsconfig.json · package.json
+    ├── assets/                       # icons & splash images
+    └── src/
+        ├── App.tsx                   # session state: onboarding → login → RoleRouter
+        ├── api.ts                    # fetch client (reads EXPO_PUBLIC_API_URL, Bearer token)
+        ├── theme.ts                  # design tokens (colors, typography, radii)
+        ├── types.ts                  # shared TypeScript interfaces
+        ├── LeafletMap.tsx            # map engine (WebView + Leaflet + OSM tiles)
+        ├── utils/                    # geo.ts (hull/haversine/nearest), constants.ts (label maps)
+        ├── components/               # 14 reusable UI primitives + index.ts barrel
+        ├── navigation/               # RoleRouter.tsx + coordinatorNav.ts + adminNav.ts
+        └── screens/
+            ├── OnboardingScreen.tsx · LoginScreen.tsx
+            ├── coordinator/          # CoordinatorNavigator + 4 pages + Profile
+            │   ├── components/       # PlaceSearch, AssignCoordinatorList
+            │   └── modals/           # NewReport, PlanEditor, AssignDriver, ActiveRoute, AssignSite
+            ├── admin/                # AdminNavigator + 5 pages + adminStyles
+            │   └── modals/           # AddCenter, AddCoordinator (role picker)
+            └── driver/               # DriverNavigator (driver role tabs)
 ```
 
-**Import direction (enforced by convention, no cycles):**
-`theme/api/types/utils → components → navigation-config → screens → navigators → App.tsx`.
-Screens never import screens; components never import `api`.
+**Numbered "setup touchpoints" (①–⑧) are the files you create or configure before the first run — they map 1:1 to the runbooks in §14.**
+
+Notes:
+- `backend/tests/` exists in the working tree for developers (unit + smoke tests, §17) but is **not** required to run the app, so it is omitted from this run-structure view.
+- Process/design artifacts (`STATUS.md`, `WRITEUP.md`, `FRONTEND_MAINTENANCE.md`, `DRIVER_FEATURE_PLAN.md`, `MOBILE_TESTING_GUIDE.md`, `MADAD_UI/` design screens) are deliberately **not in the repository** — they live on the development machine only and are listed in `.gitignore`.
+- `.env` files are never committed; the `.env.example` files (tracked) document every variable the app needs, including the API keys listed in §13.
 
 ---
-
 # 6. Database
 
 ## 6.1 Engine & connection
@@ -1137,4 +1117,4 @@ Every entry below actually occurred during development; the fixes are in the cod
 
 ---
 
-*End of `Madad.md`. Companion documents: `WRITEUP.md` (pitch), `FRONTEND_MAINTENANCE.md` (refactor log), `DRIVER_FEATURE_PLAN.md` (driver design), `STATUS.md` (history).*
+*End of `Madad.md` — the single, complete handoff document for MADAD.*
