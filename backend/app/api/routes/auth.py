@@ -19,6 +19,7 @@ def login(payload: LoginRequest, db: Session = Depends(get_db)):
         raise HTTPException(status_code=403, detail="This account has been deactivated")
     token = create_access_token(user.id, user.role, user.center_id)
     return {"access_token": token, "role": user.role, "user_id": user.id,
+            "username": user.username,
             "center_id": user.center_id,
             "center_name": user.center.name if user.center else None}
 

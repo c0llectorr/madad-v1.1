@@ -23,6 +23,15 @@ export function HomePage({ centerId, sites, reports, dispatches, depots, onNewRe
   const top = [...sites].filter(s => s.status !== 'delivered')
     .sort((a, b) => (b.priority_score ?? 0) - (a.priority_score ?? 0)).slice(0, 5);
 
+  const [recalculating, setRecalculating] = useState(false);
+  const recalcError = useState<string | null>(null);
+  const recalculate = async () => {
+    setRecalculating(true);
+    try { await api('/plan/replan', { method: 'POST', body: { center_id: centerId, trigger: 'new_report' } }); }
+    catch (e: any) { recalcError[1](e.message); }
+    finally { setRecalculating(false); }
+  };
+
   return (
     <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: 16, paddingBottom: 100 }}>
       <SectionTitle title="Operations Dashboard" />
@@ -57,6 +66,8 @@ export function HomePage({ centerId, sites, reports, dispatches, depots, onNewRe
 
       <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 12 }}>
         <Text style={[T.titleLg, { color: C.onSurface, flex: 1 }]}>Top Relief Sites</Text>
+        <PillButton title={recalculating ? 'Recalculating…' : 'Recalculate priorities'}
+                    onPress={recalculate} icon="⚙" />
       </View>
 
       {top.map((s, i) => (

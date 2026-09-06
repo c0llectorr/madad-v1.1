@@ -83,10 +83,10 @@ backend/
 │   ├── services/             # extraction (groq/gemini/qwen), geocoding, prioritization, routing, replanning
 │   ├── schemas/              # pydantic request models
 │   └── db/session.py
-├── database/geodata/         # demo_corridor.graphml (generated, committed)
-├── postgres/                 # schema.sql + seed_dummy.sql (25 coordinators, 5 centers, 25 depots)
+├── database/geodata/         # demo_corridor.graphml — 208 MB, Git LFS (git lfs pull after clone)
+├── postgres/                 # schema.sql + seed_dummy.sql + seed_drivers.sql
 ├── scripts/                  # fetch_graph.py, bootstrap_admin.py
-└── tests/
+└── tests/                    # pytest unit tests + smoke_chain.py live API test
 mobile/src/
 ├── components/               # reusable primitives (Button, Field, SearchBox, FilterChips,
 │                             #   Card, Chip, AppBar, Screen, BottomNav, Fab, Stepper…)

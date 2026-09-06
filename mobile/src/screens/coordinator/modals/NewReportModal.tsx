@@ -111,13 +111,20 @@ export function NewReportModal({ centerId, edit, onBack }: {
       } else if (mode === 'text') {
         await api('/reports', { method: 'POST', body: { center_id: centerId, source: 'manual', raw_text: rawText } });
       } else {
-        await api('/reports', { method: 'POST', body: { center_id: centerId, source: 'manual',
+        const created = await api<{ report_id: number }>('/reports', { method: 'POST',
+          body: { center_id: centerId, source: 'manual',
           structured_fields: {
             location_name: locName,
             headcount: parseInt(headcount || '0', 10),
             severity: SEV_API[severity],
             needs: needs.map(n => NEED_API[n]),
+            ...(parseFloat(lat) && parseFloat(lng) ? {
+              lat: parseFloat(lat), lng: parseFloat(lng) } : {}),
           } } });
+        if (flags.length > 0) {
+          await api(`/reports/${created.report_id}`, { method: 'PATCH', body: {
+            urgency_flags: flags.map(f => FLAG_API[f] ?? f) } });
+        }
       }
       onBack();
     } catch (e: any) { setErr(e.message); } finally { setBusy(false); }
@@ -206,10 +213,6 @@ export function NewReportModal({ centerId, edit, onBack }: {
             <View style={{ marginTop: 12 }}>
               <Field value={rawText} onChangeText={setRawText} multiline
                      placeholder="e.g. 250 people stranded near Jampur bypass, water rising, children present, need food and medical evacuation…" />
-            </View>
-            <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-              <Text style={{ fontSize: 22 }}>{'🎙'}</Text>
-              <Text style={[T.labelSm, { color: C.onSurfaceVariant, marginLeft: 8 }]}>Voice input (coming soon)</Text>
             </View>
           </Card>
         ) : (

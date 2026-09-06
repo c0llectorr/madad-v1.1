@@ -23,6 +23,12 @@ export function AccountsPage({ key2, refresh, go }: {
     api<Center[]>('/centers').then(setCenters).catch(() => {});
   }, [key2]);
 
+  const reactivate = async (id: number) => {
+    setErr(null);
+    try { await api(`/accounts/coordinators/${id}/reactivate`, { method: 'PATCH' }); refresh(); }
+    catch (e: any) { setErr(e.message); }
+  };
+
   const deactivate = async (id: number) => {
     setErr(null);
     try { await api(`/accounts/coordinators/${id}/deactivate`, { method: 'PATCH' }); refresh(); }
@@ -43,7 +49,7 @@ export function AccountsPage({ key2, refresh, go }: {
   return (
     <View style={{ flex: 1 }}>
       <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: 16, paddingBottom: 16 }}>
-        <SectionTitle title="Manage Coordinators" sub="Operational accounts assigned to support centers." />
+        <SectionTitle title="Manage Personnel" sub="Operational accounts assigned to support centers." />
         <Err msg={err} />
 
         <View style={cs.searchWrap}>
@@ -76,7 +82,8 @@ export function AccountsPage({ key2, refresh, go }: {
               <View style={{ flex: 1, marginLeft: 12 }}>
                 <Text style={[T.titleLg, { color: C.onSurface }]}>{u.username}</Text>
                 <Text style={[T.labelSm, { color: C.onSurfaceVariant }]}>
-                  ID: CORD-{u.user_id} · center #{u.center_id}
+                  {u.role === 'driver' ? '🚚 Driver' : '🧭 Coordinator'} · ID: {u.user_id}
+                  {u.depot_name ? ` · 🏬 ${u.depot_name}` : ''}
                 </Text>
               </View>
               <StatusChip label={u.is_active ? 'Active' : 'Deactivated'} tone={u.is_active ? 'ok' : 'warning'} />
@@ -89,11 +96,11 @@ export function AccountsPage({ key2, refresh, go }: {
                 </Text>
               ) : null;
             })()}
-            {u.is_active && (
-              <View style={{ marginTop: 12 }}>
-                <Button title="Remove" onPress={() => deactivate(u.user_id)} kind="critical" icon="🗑" />
-              </View>
-            )}
+            <View style={{ marginTop: 12 }}>
+              {u.is_active
+                ? <Button title="Deactivate" onPress={() => deactivate(u.user_id)} kind="critical" icon="🗑" />
+                : <Button title="Reactivate" onPress={() => reactivate(u.user_id)} kind="tertiary" />}
+            </View>
           </Card>
         );
       })}

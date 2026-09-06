@@ -1,6 +1,6 @@
 -- MADAD schema — verbatim from MADAD_DATABASE.md Section 1
 
-CREATE TABLE support_centers (
+CREATE TABLE IF NOT EXISTS support_centers (
     id          SERIAL PRIMARY KEY,
     code        VARCHAR(20) UNIQUE NOT NULL,
     name        VARCHAR(120) NOT NULL,
@@ -10,7 +10,7 @@ CREATE TABLE support_centers (
     created_at  TIMESTAMPTZ DEFAULT now()
 );
 
-CREATE TABLE users (
+CREATE TABLE IF NOT EXISTS users (
     id             SERIAL PRIMARY KEY,
     center_id      INTEGER REFERENCES support_centers(id) ON DELETE CASCADE,
     -- NULL only for Administrators. A coordinator row must always have a center_id --
@@ -18,13 +18,13 @@ CREATE TABLE users (
     -- can't carry two different nullability rules for two different roles.
     username       VARCHAR(60) UNIQUE NOT NULL,
     password_hash  VARCHAR(255) NOT NULL,
-    role           VARCHAR(20) NOT NULL CHECK (role IN ('administrator', 'coordinator')),
+    role           VARCHAR(20) NOT NULL CHECK (role IN ('administrator', 'coordinator', 'driver')),
     is_active      BOOLEAN NOT NULL DEFAULT true,
     created_by     INTEGER REFERENCES users(id),
     created_at     TIMESTAMPTZ DEFAULT now()
 );
 
-CREATE TABLE reports (
+CREATE TABLE IF NOT EXISTS reports (
     id             SERIAL PRIMARY KEY,
     center_id      INTEGER NOT NULL REFERENCES support_centers(id) ON DELETE CASCADE,
     submitted_by   INTEGER REFERENCES users(id),
@@ -37,7 +37,7 @@ CREATE TABLE reports (
     updated_at     TIMESTAMPTZ DEFAULT now()
 );
 
-CREATE TABLE sites (
+CREATE TABLE IF NOT EXISTS sites (
     id                    SERIAL PRIMARY KEY,
     center_id             INTEGER NOT NULL REFERENCES support_centers(id) ON DELETE CASCADE,
     report_id             INTEGER REFERENCES reports(id) ON DELETE SET NULL,
@@ -58,7 +58,7 @@ CREATE TABLE sites (
     updated_at            TIMESTAMPTZ DEFAULT now()
 );
 
-CREATE TABLE depots (
+CREATE TABLE IF NOT EXISTS depots (
     id          SERIAL PRIMARY KEY,
     center_id   INTEGER NOT NULL REFERENCES support_centers(id) ON DELETE CASCADE,
     name        VARCHAR(120) NOT NULL,
@@ -68,7 +68,7 @@ CREATE TABLE depots (
     created_at  TIMESTAMPTZ DEFAULT now()
 );
 
-CREATE TABLE inventory (
+CREATE TABLE IF NOT EXISTS inventory (
     id             SERIAL PRIMARY KEY,
     depot_id       INTEGER NOT NULL REFERENCES depots(id) ON DELETE CASCADE,
     resource_type  VARCHAR(40) NOT NULL,
@@ -77,7 +77,7 @@ CREATE TABLE inventory (
     UNIQUE (depot_id, resource_type)
 );
 
-CREATE TABLE dispatches (
+CREATE TABLE IF NOT EXISTS dispatches (
     id               SERIAL PRIMARY KEY,
     center_id        INTEGER NOT NULL REFERENCES support_centers(id) ON DELETE CASCADE,
     site_id          INTEGER NOT NULL REFERENCES sites(id) ON DELETE CASCADE,
@@ -87,13 +87,13 @@ CREATE TABLE dispatches (
     route_geojson    JSONB,
     distance_km      DOUBLE PRECISION,
     eta_minutes      INTEGER,
-    status           VARCHAR(20) NOT NULL DEFAULT 'planned' CHECK (status IN ('planned', 'en_route', 'delivered')),
+    status           VARCHAR(20) NOT NULL DEFAULT 'planned' CHECK (status IN ('planned', 'en_route', 'delivered', 'cancelled')),
     created_at       TIMESTAMPTZ DEFAULT now(),
     updated_at       TIMESTAMPTZ DEFAULT now()
 );
 
 -- Damage-aware routing: edges are snapped ONCE, at report time, and cached here.
-CREATE TABLE damaged_roads (
+CREATE TABLE IF NOT EXISTS damaged_roads (
     id              SERIAL PRIMARY KEY,
     center_id       INTEGER NOT NULL REFERENCES support_centers(id) ON DELETE CASCADE,
     reported_by     INTEGER REFERENCES users(id),
@@ -108,7 +108,7 @@ CREATE TABLE damaged_roads (
 );
 
 -- Audit log of every reroute event.
-CREATE TABLE dispatch_reroutes (
+CREATE TABLE IF NOT EXISTS dispatch_reroutes (
     id               SERIAL PRIMARY KEY,
     dispatch_id      INTEGER NOT NULL REFERENCES dispatches(id) ON DELETE CASCADE,
     triggered_by     INTEGER REFERENCES users(id),
@@ -132,10 +132,6 @@ ALTER TABLE dispatches ADD COLUMN IF NOT EXISTS assigned_to INTEGER REFERENCES u
 CREATE INDEX IF NOT EXISTS idx_dispatches_assigned ON dispatches(assigned_to) WHERE assigned_to IS NOT NULL;
 
 -- v1.2: driver role + persisted AI plans
-ALTER TABLE users DROP CONSTRAINT users_role_check;
-ALTER TABLE users ADD CONSTRAINT users_role_check
-  CHECK (role IN ('administrator', 'coordinator', 'driver'));
-
 CREATE TABLE IF NOT EXISTS drivers (
   id         SERIAL PRIMARY KEY,
   user_id    INTEGER NOT NULL UNIQUE REFERENCES users(id) ON DELETE CASCADE,
@@ -170,3 +166,6 @@ ALTER TABLE dispatches ADD COLUMN IF NOT EXISTS plan_id INTEGER REFERENCES plans
 ALTER TABLE dispatches ADD COLUMN IF NOT EXISTS driver_id INTEGER REFERENCES drivers(id);
 CREATE INDEX IF NOT EXISTS idx_dispatches_driver ON dispatches(driver_id) WHERE driver_id IS NOT NULL;
 CREATE INDEX IF NOT EXISTS idx_plans_site ON plans(site_id);
+
+CREATE INDEX IF NOT EXISTS idx_sites_priority ON sites(priority_score);
+CREATE INDEX IF NOT EXISTS idx_dispatches_created ON dispatches(created_at);

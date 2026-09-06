@@ -30,14 +30,10 @@ export function CentersPage({ centers, key2, refresh, go }: {
       >
         <SectionTitle title="Manage Centers" sub="View and manage operational relief centers." />
 
-        <View style={cs.searchWrap}>
-          <Text style={{ color: C.outline, marginRight: 8 }}>{'🔍'}</Text>
-          <TextInput style={{ flex: 1, color: C.onSurface, fontSize: 16, paddingVertical: 8 }}
-            value={search} onChangeText={setSearch}
-            placeholder="Search by Name or Unique Code.." placeholderTextColor={C.outline} />
-        </View>
+        <SearchBox value={search} onChangeText={setSearch}
+                   placeholder="Search by Name or Unique Code.." />
 
-        {centers.map(c => (
+        {filtered.map(c => (
           <Card key={c.id} barColor={C.primary} onPress={() => setOpenId(openId === c.id ? null : c.id)}>
             <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
               <Text style={[T.titleLg, { color: C.onSurface, flex: 1 }]}>{c.name}</Text>

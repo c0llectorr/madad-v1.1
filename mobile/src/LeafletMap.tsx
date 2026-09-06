@@ -141,7 +141,17 @@ const HTML = `<!DOCTYPE html>
     });
     (payload.markers || []).forEach(function (m) {
       var marker = L.marker([m.lat, m.lng], { icon: pinIcon(m.color || '#118AB2', m.icon || 'pin', m.label || '') })
-        .bindPopup('<b>' + (m.title || '') + '</b>' + (m.snippet ? '<br>' + m.snippet : ''));
+        .bindPopup(function () {
+          var el = document.createElement('div');
+          var b = document.createElement('b');
+          b.textContent = m.title || '';
+          el.appendChild(b);
+          if (m.snippet) {
+            el.appendChild(document.createElement('br'));
+            el.appendChild(document.createTextNode(m.snippet));
+          }
+          return el;
+        }());
       marker.addTo(layers.markers);
       pts.push([m.lat, m.lng]);
     });
@@ -204,8 +214,11 @@ const LeafletMap = React.forwardRef<LeafletMapHandle, {
     // eslint-disable-next-line react-hooks/exhaustive-deps
     []);   // HTML is fixed at mount — center/zoom are only the initial view
 
+    // JSON.stringify does not escape "</script>" — escape "<" so user-supplied
+  // titles/reasons can never break out of the inline <script> block.
+  const safeJson = (v: unknown) => JSON.stringify(v).replace(/</g, '\\u003c');
   const payload = useMemo(
-    () => `window.__render && window.__render(${JSON.stringify({ markers, polylines, polygons, fit })}); true;`,
+    () => `window.__render && window.__render(${safeJson({ markers, polylines, polygons, fit })}); true;`,
     [markers, polylines, polygons, fit]);
 
   // Track readiness so a center prop set before the map engine loads is

@@ -104,6 +104,25 @@ def update_items(plan_id: int, payload: PlanItemsUpdate, db: Session = Depends(g
         raise HTTPException(status_code=409,
                             detail="Plan is locked — a driver has already been assigned")
 
+    # SERVER-side stock validation — the client cap was the only guard before
+    site = db.query(Site).get(plan.site_id)
+    _, stock = _stock_for_site(db, plan.center_id, site)
+    for item in payload.items:
+        if item.quantity > stock.get(item.resource_type, 0):
+            raise HTTPException(
+                status_code=409,
+                detail=f"Requested {item.quantity} {item.resource_type} but the nearest "
+                       f"depot holds only {stock.get(item.resource_type, 0)}")
+
+    # server-side stock validation — the client cap is UX, this is the control
+    site = db.query(Site).get(plan.site_id)
+    _, stock = _stock_for_site(db, plan.center_id, site)
+    for item in payload.items:
+        if item.quantity > stock.get(item.resource_type, 0):
+            raise HTTPException(
+                status_code=409,
+                detail=f"Requested {item.quantity} {item.resource_type} but the depot "
+                       f"only holds {stock.get(item.resource_type, 0)}")
     db.query(PlanItem).filter(PlanItem.plan_id == plan_id).delete()
     for item in payload.items:
         if item.quantity > 0:
@@ -121,6 +140,9 @@ def finalize_plan(plan_id: int, db: Session = Depends(get_db),
         raise HTTPException(status_code=404, detail="Plan not found")
     if plan.status != "draft":
         raise HTTPException(status_code=409, detail="Plan already finalized")
+    items = db.query(PlanItem).filter(PlanItem.plan_id == plan_id).all()
+    if not items:
+        raise HTTPException(status_code=409, detail="Cannot finalize an empty plan")
     plan.status = "finalized"
     db.commit()
     return _plan_dict(db, plan)
@@ -162,7 +184,9 @@ async def assign_driver(plan_id: int, payload: dict, db: Session = Depends(get_d
         if result is None:
             result = direct_fallback((depot.lat, depot.lng), (site.lat, site.lng))
 
-        for resource in resources:
+        # lock rows in a deterministic order to prevent deadlocks under
+        # concurrent assignments of the same depot's stock
+        for resource in sorted(resources, key=lambda r: r["resource_type"]):
             row = db.query(Inventory).filter(
                 Inventory.depot_id == depot.id,
                 Inventory.resource_type == resource["resource_type"]).with_for_update().first()

@@ -1,3 +1,5 @@
+from datetime import datetime, timezone
+
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
@@ -8,6 +10,7 @@ from app.models import Report, Site, SupportCenter
 from app.schemas import ReportCreate, ReportUpdate
 from app.services.geocoding import geocode_location_name
 from app.services.extraction import get_extraction_provider
+from app.services.prioritization import priority_score
 
 router = APIRouter(prefix="/api/reports", tags=["reports"])
 
@@ -26,21 +29,34 @@ async def submit_report(payload: ReportCreate, db: Session = Depends(get_db),
     if payload.structured_fields:
         sf = payload.structured_fields
         report.status = "confirmed"
-        geocode_result = await geocode_location_name(sf.location_name, settings.GOOGLE_MAPS_API_KEY)
-        if geocode_result:
-            site_lat, site_lng = geocode_result["lat"], geocode_result["lng"]
+        if sf.lat is not None and sf.lng is not None:
+            # manual/picked coordinates win over geocoding
+            site_lat, site_lng = sf.lat, sf.lng
         else:
-            # Geocoding failed/unmatched - place the site at its center's
-            # coordinates (right province, editable later) instead of (0,0).
-            center_row = db.query(SupportCenter).get(payload.center_id)
-            site_lat, site_lng = center_row.lat, center_row.lng
+            geocode_result = await geocode_location_name(sf.location_name, settings.GOOGLE_MAPS_API_KEY)
+            if geocode_result:
+                site_lat, site_lng = geocode_result["lat"], geocode_result["lng"]
+            else:
+                # Geocoding failed/unmatched - place the site at its center's
+                # coordinates (right province, editable later) instead of (0,0).
+                center_row = db.query(SupportCenter).get(payload.center_id)
+                site_lat, site_lng = center_row.lat, center_row.lng
         site = Site(center_id=payload.center_id, report_id=report.id,
                     location_name=sf.location_name,
                     lat=site_lat,
                     lng=site_lng,
                     estimated_population=sf.headcount,
                     severity=sf.severity,
-                    needs=sf.needs)
+                    needs=sf.needs,
+                    urgency_flags=sf.urgency_flags)
+        site.last_report_time = datetime.utcnow()
+        site.priority_score = priority_score(
+            {"estimated_population": site.estimated_population,
+             "urgency_flags": site.urgency_flags or [],
+             "severity": site.severity,
+             "confidence": site.confidence,
+             "last_report_time": site.last_report_time},
+            datetime.utcnow())
         db.add(site)
     db.commit()
     return {"report_id": report.id, "status": report.status}
@@ -87,6 +103,9 @@ async def extract_report(report_id: int, db: Session = Depends(get_db),
 @router.patch("/{report_id}")
 def review_report(report_id: int, payload: ReportUpdate, db: Session = Depends(get_db),
                   user: dict = Depends(require_role("coordinator"))):
+    """Review/edit a report. Confirming creates (or updates in place) the Site
+    and computes its deterministic priority score immediately, so the site is
+    rankable the moment it appears on the map."""
     report = db.query(Report).get(report_id)
     if not report:
         raise HTTPException(status_code=404, detail="Report not found")
@@ -107,33 +126,48 @@ def review_report(report_id: int, payload: ReportUpdate, db: Session = Depends(g
         raise HTTPException(status_code=422,
                             detail="lat and lng are required to confirm a report — set them explicitly")
 
-    report.status = payload.status or ("confirmed" if editing_confirmed else "confirmed")
+    report.status = payload.status or "confirmed"
 
-    # Update the existing site in place when editing a confirmed report,
-    # otherwise create one (first confirmation of an extracted report).
     site = db.query(Site).filter(Site.report_id == report.id).first()
+    site_id = None
+
     if report.status == "confirmed":
         if site:
+            # update in place — editing a confirmed report never duplicates sites
             site.location_name = location_name
             site.lat = lat
             site.lng = lng
             site.estimated_population = population or 0
             site.needs = needs
             site.urgency_flags = urgency_flags
-            if getattr(payload, "severity", None):
+            if payload.severity:
                 site.severity = payload.severity
         else:
+            # corroboration: a second confirmed report for the same named location
+            dup = db.query(Site).filter(Site.center_id == report.center_id,
+                                        Site.location_name == location_name).first()
+            confidence = "corroborated" if dup is not None else                 extracted.get("confidence", "single_unverified")
             site = Site(center_id=report.center_id, report_id=report.id,
                         location_name=location_name, lat=lat, lng=lng,
                         estimated_population=population or 0,
                         needs=needs, urgency_flags=urgency_flags,
-                        severity=getattr(payload, "severity", None),
-                        confidence=extracted.get("confidence", "single_unverified"))
+                        severity=payload.severity, confidence=confidence)
             db.add(site)
+
+        if site.status != "delivered":
+            # deterministic priority score computed at confirmation time
+            from datetime import datetime as dt
+            site.last_report_time = dt.utcnow()
+            site.priority_score = priority_score(
+                {"estimated_population": site.estimated_population,
+                 "urgency_flags": site.urgency_flags or [],
+                 "severity": site.severity,
+                 "confidence": site.confidence,
+                 "last_report_time": site.last_report_time},
+                dt.utcnow())
         db.flush()
         site_id = site.id
-    elif site and payload.status == "rejected":
-        site_id = site.id
+
     db.commit()
     return {"site_id": site_id, "status": report.status}
 

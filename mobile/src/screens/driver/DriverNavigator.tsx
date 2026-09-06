@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { api } from '../../api';
-import { AppBar, Button, Card, Err, Loading, Screen, SectionTitle, StatusChip } from '../../components';
+import { AppBar, BottomNav, Button, Card, Err, Loading, SectionTitle, StatusChip } from '../../components';
 import { C, T } from '../../theme';
 import { ActiveRouteModal } from '../coordinator/modals/ActiveRouteModal';
 import type { LoginResponse } from '../../types';
@@ -27,6 +27,8 @@ export default function DriverNavigator({ session, onLogout }: { session: LoginR
   const [err, setErr] = useState<string | null>(null);
   const [active, setActive] = useState<DriverDispatch | null>(null);
   const [key, setKey] = useState(0);
+  const [refreshing, setRefreshing] = useState(false);
+  const [loaded, setLoaded] = useState<Record<string, boolean>>({});
 
   const load = useCallback(() => {
     api<DriverDispatch[]>('/drivers/my/dispatches')
@@ -34,6 +36,10 @@ export default function DriverNavigator({ session, onLogout }: { session: LoginR
       .catch(e => setErr(e.message));
   }, []);
   useEffect(load, [load, key]);
+  useEffect(() => {
+    const t = setInterval(load, 20000);
+    return () => clearInterval(t);
+  }, [load]);
 
   const setStatus = async (id: number, action: 'start' | 'complete') => {
     setErr(null);
@@ -71,7 +77,10 @@ export default function DriverNavigator({ session, onLogout }: { session: LoginR
           <Text style={[T.labelLg, { color: C.primary }]}>Logout</Text>
         </Pressable>
       } />
-      <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: 16, paddingBottom: 100 }}>
+      <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: 16, paddingBottom: 100 }}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={async () => {
+          setRefreshing(true); load(); setRefreshing(false);
+        }} />}>
         <SectionTitle title={tab === 'dispatches' ? 'My Dispatches' : 'Profile'} />
         <Err msg={err} />
 
@@ -100,11 +109,21 @@ export default function DriverNavigator({ session, onLogout }: { session: LoginR
                 {d.plan_items.length > 0 && (
                   <View style={{ marginTop: 10, backgroundColor: C.surfaceLow, borderRadius: 12, padding: 12 }}>
                     <Text style={[T.labelLg, { color: C.onSurface }]}>Load checklist</Text>
-                    {d.plan_items.map(i => (
-                      <Text key={i.resource_type} style={[T.bodyMd, { color: C.onSurfaceVariant, marginTop: 2 }]}>
-                        ▢ {i.resource_type} × {i.quantity}
-                      </Text>
-                    ))}
+                    {d.plan_items.map(i => {
+                      const done = loaded[`${d.dispatch_id}:${i.resource_type}`];
+                      return (
+                        <Pressable key={i.resource_type} onPress={() =>
+                          setLoaded(s => ({ ...s, [`${d.dispatch_id}:${i.resource_type}`]: !done }))}
+                          style={{ flexDirection: 'row', alignItems: 'center', marginTop: 6 }}>
+                          <Text style={{ color: done ? C.tertiary : C.onSurfaceVariant, marginRight: 8 }}>
+                            {done ? '☑' : '▢'}
+                          </Text>
+                          <Text style={[T.bodyMd, { color: done ? C.tertiary : C.onSurfaceVariant }]}>
+                            {i.resource_type} × {i.quantity}
+                          </Text>
+                        </Pressable>
+                      );
+                    })}
                   </View>
                 )}
 
@@ -147,34 +166,21 @@ export default function DriverNavigator({ session, onLogout }: { session: LoginR
           </>
         )}
 
-        {tab === 'map' && (
-          <Text style={[T.bodyMd, { color: C.onSurfaceVariant }]}>
-            Open an en-route dispatch from the Dispatches tab to follow its live route.
-          </Text>
-        )}
-
         {tab === 'profile' && (
           <Card barColor={C.secondary}>
-            <Text style={[T.titleLg, { color: C.onSurface }]}>{session.user_id}</Text>
+            <Text style={[T.titleLg, { color: C.onSurface }]}>{session.username}</Text>
             <Text style={[T.bodyMd, { color: C.onSurfaceVariant }]}>Truck Driver</Text>
           </Card>
         )}
       </ScrollView>
 
-      {/* Driver bottom nav */}
-      <View style={s.navBar}>
-        {[
+      {/* Driver bottom nav — shared component, proper 48dp targets */}
+      <BottomNav
+        tabs={[
           { key: 'dispatches', label: 'Dispatches', icon: '🚚' },
-          { key: 'map', label: 'Map', icon: '🗺' },
           { key: 'profile', label: 'Profile', icon: '👤' },
-        ].map(t => (
-          <View key={t.key} style={{ flex: 1, alignItems: 'center' }}>
-            <Text style={{ fontSize: 20, color: tab === t.key ? C.primary : C.onSurfaceVariant }}>{t.icon}</Text>
-            <Text style={[T.labelSm, { color: tab === t.key ? C.primary : C.onSurfaceVariant }]}
-                  onPress={() => setTab(t.key)}>{t.label}</Text>
-          </View>
-        ))}
-      </View>
+        ]}
+        active={tab} onChange={setTab} />
     </View>
   );
 }

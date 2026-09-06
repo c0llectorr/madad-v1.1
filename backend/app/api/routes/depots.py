@@ -35,7 +35,7 @@ def update_inventory(depot_id: int, payload: InventoryUpdate, db: Session = Depe
                      admin: dict = Depends(require_role("administrator"))):
     row = (db.query(Inventory)
            .filter(Inventory.depot_id == depot_id, Inventory.resource_type == payload.resource_type)
-           .first())
+           .with_for_update().first())
     if row:
         new_quantity = row.quantity + payload.quantity_delta
         if new_quantity < 0:

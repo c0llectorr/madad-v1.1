@@ -116,7 +116,7 @@ class Inventory(Base):
 
 class Dispatch(Base):
     __tablename__ = "dispatches"
-    __table_args__ = (CheckConstraint("status IN ('planned', 'en_route', 'delivered')"),)
+    __table_args__ = (CheckConstraint("status IN ('planned', 'en_route', 'delivered', 'cancelled')"),)
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     center_id: Mapped[int] = mapped_column(ForeignKey("support_centers.id", ondelete="CASCADE"), nullable=False)

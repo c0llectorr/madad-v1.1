@@ -545,7 +545,8 @@ Two simultaneous dispatches cannot oversubscribe the same stock line; the DB `CH
 |---|---|
 | `POST /api/accounts/coordinators` | Creates a **coordinator or driver**. Body `{username, password, center_id, role?, depot_id?}`. Drivers require a `depot_id` belonging to that center → also inserts a `drivers` row. Errors: 404 center/depot not found, 409 username exists, 422 bad role. |
 | `GET /api/accounts/coordinators` | Lists **coordinators and drivers** with `{user_id, username, center_id, is_active, role, depot_id, depot_name, created_at}` |
-| `PATCH /api/accounts/coordinators/{id}/deactivate` | Soft-disable (login returns 403 afterwards); never deletes |
+| `PATCH /api/accounts/coordinators/{id}/deactivate` | Soft-disable; **enforced on every request** by `get_current_user` |
+| `PATCH /api/accounts/coordinators/{id}/reactivate` | Re-enables a deactivated account |
 
 ## 8.3 Centers & Depots — `routes/centers.py`, `routes/depots.py`
 
@@ -581,7 +582,7 @@ Two simultaneous dispatches cannot oversubscribe the same stock line; the DB `CH
 | `POST /api/plan/replan` | coordinator | Body `{center_id, trigger}` → deterministic replan of all active sites; returns `{changed[], unchanged[]}`. |
 | `GET /api/plans?center_id=&status=` | coordinator + admin | Plans with items embedded. |
 | `GET /api/plans/{plan_id}` | coordinator + driver + admin | Single plan (drivers read their dispatch's plan). |
-| `PATCH /api/plans/{id}/items` | coordinator | Replace all quantities. **409 if not `draft`** — the edit-lock. |
+| `PATCH /api/plans/{id}/items` | coordinator | Replace all quantities. **409 if not `draft`** (edit-lock) and **409 if any quantity exceeds the nearest depot's stock** — server-side, not just client UX. |
 | `POST /api/plans/{id}/finalize` | coordinator | `draft → finalized`. 409 otherwise. |
 | `POST /api/plans/{id}/assign` | coordinator | Body `{driver_id}`. One transaction: route from the **driver's depot** (damage-aware, straight-line fallback), `with_for_update` inventory deduction per plan item, dispatch created with `driver_id` + `plan_id`, `plan→assigned` (🔒), `driver→on_route`, `site→dispatched`. 409s: already assigned / site dispatched / insufficient stock. Returns `{dispatch_id, driver, depot, eta_minutes, distance_km}`. |
 
@@ -592,7 +593,8 @@ Two simultaneous dispatches cannot oversubscribe the same stock line; the DB `CH
 | Endpoint | Role | Behavior |
 |---|---|---|
 | `POST /api/roads/damage` | coordinator + **driver** | Body `{center_id, lat, lng, reason?}`. **Drivers get their center derived from their depot** (ignores a bogus client `center_id`). Snaps to the nearest OSM edge **once**; stores `edge_u/edge_v` + segment GeoJSON (straight-line fallback for straight edges). 201 `{id, active, edge_geometry}`. |
-| `GET /api/roads/damaged?center_id=` | coordinator + admin | Active damage rows (center optional → nationwide for the admin map) |
+| `GET /api/roads/damaged?center_id=` | coordinator + driver + admin | Active damage rows (center optional → nationwide for the admin map); **includes `center_id`** |
+| `POST /api/roads/damage/{id}/reopen` | coordinator | Reopens a flagged road — the edge re-enters the routing graph. 409 if already open. |
 | `GET /api/routes?from_depot_id=&to_site_id=` | coordinator | Preview route: damage-aware vs direct, returns `{distance_km, eta_minutes, geojson, avoided_damage, delta_minutes_vs_direct}`; 404 if disconnected |
 
 ## 8.8 Dispatch — `routes/dispatch.py`
@@ -601,7 +603,8 @@ Two simultaneous dispatches cannot oversubscribe the same stock line; the DB `CH
 |---|---|---|
 | `POST /api/dispatch` | coordinator | Body `{site_id, depot_id, resources:[{resource_type, quantity}]}`. Transactional: row-locked inventory deduction; damage-aware route; site → `dispatched`. 201 `{dispatch_id, status:"planned", route:{geojson, distance_km}, eta_minutes}`; 409 stock/site; 404. |
 | `GET /api/dispatch?center_id=` | coordinator + admin | List with `driver_id`, `plan_id`, `dispatched_by`, statuses |
-| `PATCH /api/dispatch/{id}/status` | coordinator + **driver** | Forward-only `planned → en_route → delivered` (**422** backward). Drivers restricted to **own** dispatch (403). Delivering also completes the site and frees the driver. |
+| `PATCH /api/dispatch/{id}/status` | coordinator + **driver** | Forward-only `planned → en_route → delivered` (**422** backward). Drivers restricted to **own** dispatch (403). Delivering also completes the site and frees the driver (both the coordinator and driver paths update `drivers.status`). |
+| `POST /api/dispatch/{id}/cancel` | coordinator | Cancels a `planned` dispatch: **restocks** the deducted inventory, frees the driver, returns the site to `unserved`, marks the dispatch `cancelled`. 409 if already en_route/delivered. |
 | `POST /api/dispatch/{id}/reroute` | coordinator + **driver** | Body `{current_lat, current_lng, reason?}`. Damage-aware route **from the current position**; logs to `dispatch_reroutes`; returns `{dispatch_id, distance_km, eta_minutes, geojson, delta_minutes_vs_direct}`. 409 on delivered. Drivers restricted to own dispatch. |
 | `POST /api/dispatch/{id}/assign` / `unassign` | coordinator | Legacy coordinator-assignment (assigned_to user); still present. |
 | `GET /api/dispatch/available-coordinators?center_id=` | coordinator | **Full roster** of the center's coordinators (any can be assigned; caller excluded client-side) |
@@ -746,7 +749,7 @@ Pages are prop-driven and never fetch the shared data themselves (except detail 
 
 ### Admin modals
 - `AddCenterModal.tsx` — Center Information / Location Details, **debounced Nominatim geocoding with a live map preview that flies to the result**.
-- `AddCoordinatorModal.tsx` — **role picker (coordinator / driver)**; driver adds a depot selector; creates via `POST /accounts/coordinators` with `role` + `depot_id`.
+- `AddCoordinatorModal.tsx` — **role picker (coordinator / driver)**; driver adds a depot selector; creates via `POST /accounts/coordinators` with `role` + `depot_id` (password policy 6–60, username 3–60 enforced client- and server-side).
 
 ## 9.5 Driver screens (`screens/driver/DriverNavigator.tsx`)
 
@@ -834,7 +837,7 @@ Query = name + `", Pakistan"`; candidates filtered by bounding box (language-ind
 | Login / JWT | ✅ | ✅ | ✅ |
 | Create centers / depots / inventory | ✅ | — | — |
 | Create users (coordinator/driver) | ✅ | — | — |
-| Deactivate accounts | ✅ | — | — |
+| Deactivate accounts (kills active sessions on next request) | ✅ | — | — |
 | View all depots + national map + filters | ✅ | own center scope | — |
 | Submit reports (free text / structured) | — | ✅ | — |
 | AI extraction + review/confirm/edit | — | ✅ | — |
@@ -849,10 +852,6 @@ Query = name + `", Pakistan"`; candidates filtered by bounding box (language-ind
 | View driver roster | ✅ | ✅ (their center) | — |
 
 > Backend-enforced via `require_role(...)` + in-handler ownership checks. The frontend nav config is a UX boundary, not the security boundary.
-'''
-with open("Madad.md", "a", encoding="utf-8") as f:
-    f.write(part2)
-print("part 2 appended")
 
 ---
 
@@ -1006,7 +1005,7 @@ cd backend; .\venv\Scripts\python -m pytest tests\ -q
 ```
 
 - `test_prioritization.py` — exact score math, time decay, reasoning strings.
-- `test_routing.py` — synthetic 4-node graph: normal path, damaged-edge detour, fully-cut destination returns `None` (no unsafe path), GeoJSON `[lng, lat]` order. 7 tests.
+- `test_routing.py` — synthetic 4-node graph: normal path, damaged-edge detour, fully-cut destination returns `None` (no unsafe path), GeoJSON `[lng, lat]` order. 4 tests.
 
 ## 17.2 Live smoke chain
 

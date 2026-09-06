@@ -1,6 +1,7 @@
 // Shared TypeScript contracts — single source of truth for all screens.
 export interface LoginResponse {
   access_token: string;
+  username?: string;
   role: 'administrator' | 'coordinator' | 'driver';
   user_id: number;
   center_id: number | null;
@@ -11,7 +12,11 @@ export interface Center { id: number; code: string; name: string; region: string
 export interface CenterRow { id: number; code: string; name: string; region: string | null; lat: number; lng: number }
 export interface Depot { id: number; name: string; lat: number; lng: number; inventory: { resource_type: string; quantity: number }[] }
 export interface CoordinatorRow { user_id: number; username: string; center_id: number | null; is_active: boolean }
-export interface Coordinator { user_id: number; username: string; center_id: number; is_active: boolean; created_at: string }
+export interface Coordinator {
+  user_id: number; username: string; center_id: number; is_active: boolean;
+  role: 'coordinator' | 'driver'; depot_id?: number | null; depot_name?: string | null;
+  created_at: string;
+}
 
 export interface Site { id: number; report_id?: number | null; location_name: string; lat: number; lng: number; estimated_population: number; needs: string[]; urgency_flags: string[]; severity: string | null; confidence: string; priority_score: number | null; status: string }
 export interface Damage { id: number; center_id?: number; lat: number; lng: number; reason: string | null; edge_geometry: any; reported_at: string }

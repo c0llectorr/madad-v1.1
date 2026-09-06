@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { Pressable, Text, View } from 'react-native';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { api } from '../../api';
-import { AppBar, BottomNav } from '../../components';
+import { AppBar, BottomNav, NotificationsModal } from '../../components';
 import { C, T } from '../../theme';
 import type { Center, LoginResponse } from '../../types';
 import { ADMIN_TABS } from '../../navigation/adminNav';
@@ -20,7 +20,10 @@ type AdminView = null | { name: 'addCenter' } | { name: 'addCoordinator' };
 export default function AdminNavigator({ session, onLogout }: { session: LoginResponse; onLogout: () => void }) {
   const [tab, setTab] = useState('resources');
   const [view, setView] = useState<AdminView>(null);
+  const openView = useCallback((v: { name: 'addCenter' } | { name: 'addCoordinator' }) =>
+    setView(v), []);
   const [centers, setCenters] = useState<Center[]>([]);
+  const [notifOpen, setNotifOpen] = useState(false);
   const [key, setKey] = useState(0);
   const refresh = useCallback(() => setKey(k => k + 1), []);
 
@@ -30,10 +33,14 @@ export default function AdminNavigator({ session, onLogout }: { session: LoginRe
 
   return (
     <View style={{ flex: 1, backgroundColor: C.background }}>
-      <AppBar title="MADAD" onMenu={() => {}} right={<AdminBell />} />
+      <AppBar title="MADAD" right={
+        <Pressable onPress={() => setNotifOpen(true)} hitSlop={8} accessibilityLabel="Notifications">
+          <Text style={{ fontSize: 20, padding: 6 }}>{'🔔'}</Text>
+        </Pressable>
+      } />
       <View style={{ flex: 1 }}>
-        {tab === 'resources' && <ResourcesPage centers={centers} key2={key} />}
-        {tab === 'map' && <AdminMapPage centers={centers} />}
+        {tab === 'resources' && <ResourcesPage centers={centers} key2={key} go={openView} />}
+        {tab === 'map' && <AdminMapPage centers={centers} key2={key} />}
         {tab === 'centers' && <CentersPage centers={centers} key2={key} refresh={refresh} go={(v: { name: 'addCenter' } | { name: 'addCoordinator' }) => setView(v)} />}
         {tab === 'accounts' && <AccountsPage key2={key} refresh={refresh} go={(v: { name: 'addCenter' } | { name: 'addCoordinator' }) => setView(v)} />}
         {tab === 'settings' && <SettingsPage session={session} onLogout={onLogout} />}
@@ -45,6 +52,7 @@ export default function AdminNavigator({ session, onLogout }: { session: LoginRe
           <AddCenterModal centers={centers} onBack={() => { setView(null); refresh(); }} />
         </View>
       )}
+      <NotificationsModal visible={notifOpen} items={[]} onClose={() => setNotifOpen(false)} />
       {view?.name === 'addCoordinator' && (
         <View style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: C.background }}>
           <AddCoordinatorModal centers={centers} onBack={() => { setView(null); refresh(); }} />

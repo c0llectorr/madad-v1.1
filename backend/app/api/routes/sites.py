@@ -2,11 +2,10 @@ from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 
 from fastapi import HTTPException
-from sqlalchemy.orm import Session as OrmSession
 
 from app.api.deps import require_role
 from app.db.session import get_db
-from app.models import Site, Dispatch, User, Depot
+from app.models import Site, Depot
 
 router = APIRouter(prefix="/api/sites", tags=["sites"])
 
@@ -19,7 +18,7 @@ def list_sites(center_id: int | None = None, status: str | None = None,
         q = q.filter(Site.center_id == center_id)
     if status:
         q = q.filter(Site.status == status)
-    return [{"id": s.id, "report_id": s.report_id, "location_name": s.location_name, "lat": s.lat, "lng": s.lng,
+    return [{"id": s.id, "center_id": s.center_id, "report_id": s.report_id, "location_name": s.location_name, "lat": s.lat, "lng": s.lng,
              "estimated_population": s.estimated_population,
              "needs": s.needs, "urgency_flags": s.urgency_flags,
              "severity": s.severity, "confidence": s.confidence,
@@ -54,7 +53,15 @@ async def assign_coordinator_to_site(site_id: int, payload: dict,
     depots = db.query(Depot).filter(Depot.center_id == site.center_id).all()
     if not depots:
         raise HTTPException(status_code=404, detail="No depot exists for this center — create one first")
-    depot = min(depots, key=lambda d: (d.lat - site.lat) ** 2 + (d.lng - site.lng) ** 2)
+    import math
+    def hav(d):
+        R = 6371.0
+        p1, p2 = math.radians(site.lat), math.radians(d.lat)
+        dp = p2 - p1
+        dl = math.radians(d.lng - site.lng)
+        a = math.sin(dp / 2) ** 2 + math.cos(p1) * math.cos(p2) * math.sin(dl / 2) ** 2
+        return 2 * R * math.asin(math.sqrt(a))
+    depot = min(depots, key=hav)
 
     damage_rows = db.query(DamagedRoad).filter(
         DamagedRoad.center_id == user["center_id"], DamagedRoad.active == True).all()

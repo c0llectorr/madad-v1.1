@@ -1,4 +1,8 @@
+import logging
 from contextlib import asynccontextmanager
+
+logging.basicConfig(level=logging.INFO,
+                    format="%(asctime)s %(levelname)s %(name)s %(message)s")
 
 from fastapi import FastAPI
 
@@ -9,6 +13,11 @@ from app.services.routing import load_graph_on_startup
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    from app.core.config import settings
+    if settings.JWT_SECRET in ("change_me", "MADAD_SECRET_TOKEN_VALUE", ""):
+        logging.getLogger("madad").warning(
+            "JWT_SECRET is a default/weak value — tokens are forgeable. "
+            "Set a strong JWT_SECRET in backend/.env before any real deployment.")
     load_graph_on_startup()  # fail loudly at startup if the graph file is missing
     yield
 

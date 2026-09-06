@@ -39,19 +39,23 @@ class InventoryUpdate(BaseModel):
 # --- REPORTS ---
 NEED_ENUM = Literal["food", "water", "medical_evacuation", "shelter", "medicine", "general_evacuation"]
 SEVERITY_ENUM = Literal["low", "medium", "high", "critical"]
+URGENCY_ENUM = Literal["elderly_present", "children_present", "pregnancy", "injury_reported", "water_rising", "stranded_no_exit"]
 
 
 class StructuredFields(BaseModel):
-    location_name: str
-    headcount: int = 0
+    location_name: str = Field(max_length=150)
+    headcount: int = Field(ge=0, le=10_000_000)
     severity: SEVERITY_ENUM | None = None
     needs: list[NEED_ENUM] = []
+    lat: float | None = Field(default=None, ge=-90, le=90)
+    lng: float | None = Field(default=None, ge=-180, le=180)
+    urgency_flags: list[URGENCY_ENUM] = []
 
 
 class ReportCreate(BaseModel):
     center_id: int
     source: Literal["manual", "sms_stub"] = "manual"
-    raw_text: str | None = None
+    raw_text: str | None = Field(default=None, max_length=4000)
     structured_fields: StructuredFields | None = None
 
 
@@ -81,7 +85,7 @@ class DamageReport(BaseModel):
     center_id: int
     lat: float
     lng: float
-    reason: str | None = None
+    reason: str | None = Field(default=None, max_length=200)
 
 
 class RerouteRequest(BaseModel):

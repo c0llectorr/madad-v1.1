@@ -55,12 +55,12 @@ def _nearest_edges(G, x, y):
 
 @router.get("/roads/damaged")
 def list_damaged(center_id: int | None = None, db: Session = Depends(get_db),
-                 user: dict = Depends(require_role("coordinator", "administrator"))):
+                 user: dict = Depends(require_role("coordinator", "administrator", "driver"))):
     q = db.query(DamagedRoad).filter(DamagedRoad.active == True)
     if center_id:
         q = q.filter(DamagedRoad.center_id == center_id)
     rows = q.all()
-    return [{"id": r.id, "lat": r.lat, "lng": r.lng, "reason": r.reason,
+    return [{"id": r.id, "center_id": r.center_id, "lat": r.lat, "lng": r.lng, "reason": r.reason,
              "edge_geometry": r.edge_geometry, "reported_at": r.reported_at} for r in rows]
 
 
@@ -94,3 +94,33 @@ async def get_route(from_depot_id: int, to_site_id: int, db: Session = Depends(g
         "delta_minutes_vs_direct": round((result_with_damage["travel_time_sec"]
                                           - result_direct["travel_time_sec"]) / 60),
     }
+
+
+@router.post("/roads/damage/{damage_id}/reopen")
+def reopen_road(damage_id: int, db: Session = Depends(get_db),
+                user: dict = Depends(require_role("coordinator", "administrator"))):
+    """Reopen a previously flagged road (closures are no longer permanent)."""
+    from app.models import DamagedRoad as DR
+    row = db.query(DR).get(damage_id)
+    if not row:
+        raise HTTPException(status_code=404, detail="Damage report not found")
+    if not row.active:
+        raise HTTPException(status_code=409, detail="Road already reopened")
+    row.active = False
+    db.commit()
+    return {"id": row.id, "active": False}
+
+
+@router.post("/damage/{damage_id}/reopen")
+def reopen_road(damage_id: int, db: Session = Depends(get_db),
+                user: dict = Depends(require_role("coordinator"))):
+    """Reopen a previously flagged road — the edge re-enters the routing graph."""
+    from app.models import DamagedRoad
+    damage = db.query(DamagedRoad).get(damage_id)
+    if not damage:
+        raise HTTPException(status_code=404, detail="Damage report not found")
+    if not damage.active:
+        raise HTTPException(status_code=409, detail="Road already reopened")
+    damage.active = False
+    db.commit()
+    return {"id": damage.id, "active": False}

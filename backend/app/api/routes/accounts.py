@@ -14,6 +14,12 @@ router = APIRouter(prefix="/api/accounts", tags=["accounts"])
 def create_user(payload: dict, db: Session = Depends(get_db),
                 admin: dict = Depends(require_role("administrator"))):
     """Create a coordinator OR a driver (role in body; drivers require depot_id)."""
+    username = (payload.get("username") or "").strip()
+    password = payload.get("password") or ""
+    if not username or not (3 <= len(username) <= 60):
+        raise HTTPException(status_code=422, detail="username must be 3-60 characters")
+    if len(password) < 8:
+        raise HTTPException(status_code=422, detail="password must be at least 8 characters")
     role = payload.get("role", "coordinator")
     if role not in ("coordinator", "driver"):
         raise HTTPException(status_code=422, detail="role must be coordinator or driver")
@@ -47,14 +53,19 @@ def list_coordinators(center_id: int | None = None, db: Session = Depends(get_db
     q = db.query(User).filter(User.role.in_(("coordinator", "driver")))
     if center_id:
         q = q.filter(User.center_id == center_id)
+    # single joined query — was 2 queries per user (N+1)
+    rows = (db.query(User, Driver, Depot)
+            .outerjoin(Driver, Driver.user_id == User.id)
+            .outerjoin(Depot, Depot.id == Driver.depot_id)
+            .filter(User.id.in_([u.id for u in q.all()])).all())
+    by_id = {u.id: (u, d, dp) for u, d, dp in rows}
     out = []
     for u in q.all():
-        drv = db.query(Driver).filter(Driver.user_id == u.id).first()
-        depot = db.query(Depot).get(drv.depot_id) if drv else None
+        d, dp = (by_id.get(u.id, (None, None))[1], by_id.get(u.id, (None, None))[2])
         out.append({"user_id": u.id, "username": u.username, "center_id": u.center_id,
                     "is_active": u.is_active, "role": u.role,
-                    "depot_id": drv.depot_id if drv else None,
-                    "depot_name": depot.name if depot else None,
+                    "depot_id": d.depot_id if d else None,
+                    "depot_name": dp.name if dp else None,
                     "created_at": u.created_at})
     return out
 
@@ -68,3 +79,15 @@ def deactivate_coordinator(user_id: int, db: Session = Depends(get_db),
     user.is_active = False
     db.commit()
     return {"user_id": user.id, "is_active": False}
+
+
+@router.patch("/coordinators/{user_id}/reactivate")
+def reactivate_user(user_id: int, db: Session = Depends(get_db),
+                    admin: dict = Depends(require_role("administrator"))):
+    """Re-enable a deactivated account (deactivation is no longer irreversible)."""
+    user = db.query(User).get(user_id)
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    user.is_active = True
+    db.commit()
+    return {"user_id": user.id, "is_active": True}

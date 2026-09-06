@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { StatusBar } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
-import { loadStoredToken, setToken, LoginResponse } from './src/api';
+import { loadStoredToken, setToken, setUnauthorizedHandler, LoginResponse } from './src/api';
 import OnboardingScreen from './src/screens/OnboardingScreen';
 import LoginScreen from './src/screens/LoginScreen';
 import RoleRouter from './src/navigation/RoleRouter';
@@ -15,6 +15,8 @@ export default function App() {
   useEffect(() => {
     // Fresh login each launch — the token store only persists within a session.
     loadStoredToken().then(() => setSession('onboarding'));
+    // An expired token anywhere in the app returns the user to the login screen.
+    setUnauthorizedHandler(() => { setToken(null).then(() => setSession(null)); });
   }, []);
 
   const logout = async () => {

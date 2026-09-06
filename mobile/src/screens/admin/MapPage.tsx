@@ -12,7 +12,7 @@ import { convexHull } from '../../utils/geo';
 interface SiteRow { id: number; center_id: number; report_id?: number | null; location_name: string; lat: number; lng: number; estimated_population: number; needs: string[]; urgency_flags: string[]; severity: string | null; confidence: string; priority_score: number | null; status: string }
 interface DamageRow { id: number; center_id: number; lat: number; lng: number; reason: string | null; edge_geometry: any; reported_at: string }
 
-export function AdminMapPage({ centers }: { centers: Center[] }) {
+export function AdminMapPage({ centers, key2 }: { centers: Center[]; key2?: number }) {
   const [province, setProvince] = useState<string>('All Pakistan');
   const [sites, setSites] = useState<SiteRow[]>([]);
   const [damaged, setDamaged] = useState<DamageRow[]>([]);
@@ -29,14 +29,12 @@ export function AdminMapPage({ centers }: { centers: Center[] }) {
           api<DamageRow[]>('/roads/damaged'),
         ]);
         setSites(s); setDamaged(d);
-        const result: Record<number, Depot[]> = {};
-        for (const c of centers) {
-          result[c.id] = await api<Depot[]>(`/depots?center_id=${c.id}`);
-        }
-        setDepotsByCenter(result);
+        const results = await Promise.all(
+          centers.map(c => api<Depot[]>(`/depots?center_id=${c.id}`)));
+        setDepotsByCenter(Object.fromEntries(centers.map((c, i) => [c.id, results[i]])));
       } catch (e: any) { setErr(e.message); }
     })();
-  }, [centers]);
+  }, [centers, key2]);
 
   const selectedCenter = province === 'All Pakistan'
     ? null : centers.find(c => c.region === province || c.name.includes(province));
@@ -82,7 +80,7 @@ export function AdminMapPage({ centers }: { centers: Center[] }) {
   const affectedPeople = vSites.reduce((sum, s) => sum + (s.estimated_population || 0), 0);
   const criticalCount = vSites.filter(s => s.severity === 'critical' || s.severity === 'high').length;
 
-  const provinces = ['All Pakistan', ...centers.map(c => c.region ?? c.name)];
+  const provinces = ['All Pakistan', ...Array.from(new Set(centers.map(c => c.region ?? c.name)))];
 
   return (
     <View style={{ flex: 1 }}>
@@ -91,7 +89,7 @@ export function AdminMapPage({ centers }: { centers: Center[] }) {
         <LeafletMap
           markers={markers}
           polygons={floodPolygons}
-          fit={markers.length > 0 || floodPolygons.length > 0}
+          fit={!selectedCenter && (markers.length > 0 || floodPolygons.length > 0)}
           center={selectedCenter
             ? { lat: selectedCenter.lat, lng: selectedCenter.lng }
             : { lat: 30.3769, lng: 69.3451 }}

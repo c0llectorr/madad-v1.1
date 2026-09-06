@@ -8,8 +8,9 @@ import { FilterChips } from '../../components/FilterChips';
 import type { Center, Coordinator, Depot } from '../../types';
 import { convexHull } from '../../utils/geo';
 
-export function ResourcesPage({ centers, key2 }: {
+export function ResourcesPage({ centers, key2, go }: {
   centers: Center[]; key2: number;
+  go: (v: { name: 'addCenter' | 'addCoordinator' }) => void;
 }) {
   const [depotsByCenter, setDepotsByCenter] = useState<Record<number, Depot[]>>({});
   const [err, setErr] = useState<string | null>(null);
@@ -17,11 +18,9 @@ export function ResourcesPage({ centers, key2 }: {
   useEffect(() => {
     (async () => {
       try {
-        const result: Record<number, Depot[]> = {};
-        for (const c of centers) {
-          result[c.id] = await api<Depot[]>(`/depots?center_id=${c.id}`);
-        }
-        setDepotsByCenter(result);
+        const results = await Promise.all(
+          centers.map(c => api<Depot[]>(`/depots?center_id=${c.id}`)));
+        setDepotsByCenter(Object.fromEntries(centers.map((c, i) => [c.id, results[i]])));
       } catch (e: any) { setErr(e.message); }
     })();
   }, [centers, key2]);
@@ -40,11 +39,21 @@ export function ResourcesPage({ centers, key2 }: {
       <SectionTitle title="Resource Management"
         sub="Real-time status across all regional depots." />
       <Err msg={err} />
+      <View style={{ flexDirection: 'row', gap: 10, marginBottom: 14 }}>
+        <View style={{ flex: 1 }}>
+          <PillButton title="Add Center" onPress={() => go({ name: 'addCenter' })} icon="＋" />
+        </View>
+        <View style={{ flex: 1 }}>
+          <PillButton title="Add Coordinator" kind="primary"
+                      onPress={() => go({ name: 'addCoordinator' })} icon="👤" />
+        </View>
+      </View>
 
       {centers.length === 0 && <Text style={[T.bodyMd, { color: C.onSurfaceVariant }]}>No centers yet — add one to begin.</Text>}
 
-      {totals.map(([type, qty], idx) => {
-        const low = qty < 100;
+      {totals.map(([type, qty]) => {
+        const mean = totals.length ? totals.reduce((s, t) => s + t[1], 0) / totals.length : 0;
+        const low = qty < mean * 0.25;
         const tone = low ? C.critical : C.tertiary;
         return (
           <Card key={type} barColor={low ? C.critical : C.tertiary}>
@@ -56,12 +65,18 @@ export function ResourcesPage({ centers, key2 }: {
               {qty.toLocaleString()}
             </Text>
             <Text style={[T.labelSm, { color: C.onSurfaceVariant, marginTop: 2 }]}>units in stock</Text>
-            {/* mini bar chart */}
+            {/* per-depot distribution — REAL quantities */}
             <View style={{ flexDirection: 'row', alignItems: 'flex-end', height: 64, marginTop: 14, gap: 6 }}>
-              {Array.from({ length: 6 }).map((_, i) => {
-                const h = Math.max(10, (qty / maxQty) * 64 * (1 - i * 0.12));
-                return <View key={i} style={{ flex: 1, height: i === 0 ? h : h * 0.8, backgroundColor: tone, opacity: 0.85, borderRadius: 4 }} />;
-              })}
+              {(() => {
+                const perDepot = Object.values(depotsByCenter).flat()
+                  .flatMap(d => d.inventory.filter(i => i.resource_type === type)
+                    .map(i => i.quantity));
+                const cap = Math.max(1, ...perDepot);
+                return perDepot.slice(0, 12).map((q, i) => (
+                  <View key={i} style={{ flex: 1, height: Math.max(6, (q / cap) * 64),
+                    backgroundColor: tone, opacity: 0.85, borderRadius: 4 }} />
+                ));
+              })()}
             </View>
             <Text style={[T.labelSm, { color: C.onSurfaceVariant, marginTop: 8 }]}>
               across {Object.values(depotsByCenter).flat().length} depots · {centers.length} centers

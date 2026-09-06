@@ -10,7 +10,7 @@ from app.services.routing import (compute_route, get_damaged_edge_pairs, path_to
 
 router = APIRouter(prefix="/api/dispatch", tags=["dispatch"])
 
-STATUS_ORDER = {"planned": 0, "en_route": 1, "delivered": 2}
+STATUS_ORDER = {"planned": 0, "en_route": 1, "delivered": 2, "cancelled": 3}
 
 
 @router.post("", status_code=201)
@@ -22,7 +22,7 @@ async def create_dispatch(payload: DispatchCreate, db: Session = Depends(get_db)
         raise HTTPException(status_code=404, detail="Depot or site not found")
 
     try:
-        for resource in payload.resources:
+        for resource in sorted(payload.resources, key=lambda r: r.resource_type):
             from app.models import Inventory
             inventory_row = db.query(Inventory).filter(
                 Inventory.depot_id == payload.depot_id,
@@ -83,6 +83,12 @@ def update_status(dispatch_id: int, payload: DispatchStatusUpdate, db: Session =
     dispatch.status = payload.status
     if payload.status == "delivered":
         db.query(Site).filter(Site.id == dispatch.site_id).update({"status": "delivered"})
+        if dispatch.driver_id:
+            db.query(Driver).filter(Driver.id == dispatch.driver_id).update({"status": "available"})
+        # free the driver on EVERY delivery path (coordinator or driver),
+        # not only the driver-completed one — fixes the stranded on_route bug
+        if dispatch.driver_id:
+            db.query(Driver).filter(Driver.id == dispatch.driver_id).update({"status": "available"})
     db.commit()
     return {"dispatch_id": dispatch.id, "status": dispatch.status}
 
@@ -129,6 +135,38 @@ async def reroute_dispatch(dispatch_id: int, payload: RerouteRequest, db: Sessio
             "geojson": dispatch.route_geojson,
             "delta_minutes_vs_direct": round((result["travel_time_sec"]
                                               - result_direct["travel_time_sec"]) / 60)}
+
+
+@router.post("/{dispatch_id}/cancel")
+def cancel_dispatch(dispatch_id: int, db: Session = Depends(get_db),
+                    user: dict = Depends(require_role("coordinator"))):
+    """Cancel a dispatch: restocks the deducted inventory, frees the driver,
+    returns the site to unserved, and marks the dispatch cancelled."""
+    dispatch = db.query(Dispatch).get(dispatch_id)
+    if not dispatch:
+        raise HTTPException(status_code=404, detail="Dispatch not found")
+    if dispatch.status in ("delivered", "cancelled"):
+        raise HTTPException(status_code=409, detail="Dispatch already completed")
+
+    from app.models import Inventory
+    try:
+        for resource in (dispatch.resources_loaded or []):
+            row = db.query(Inventory).filter(
+                Inventory.depot_id == dispatch.depot_id,
+                Inventory.resource_type == resource["resource_type"]).with_for_update().first()
+            if row:
+                row.quantity += resource.get("quantity", 0)
+        if dispatch.driver_id:
+            db.query(Driver).filter(Driver.id == dispatch.driver_id).update({"status": "available"})
+        if dispatch.plan_id:
+            from app.models import Plan
+            db.query(Plan).filter(Plan.id == dispatch.plan_id).update({"status": "finalized"})
+        db.query(Site).filter(Site.id == dispatch.site_id).update({"status": "unserved"})
+        dispatch.status = "cancelled"
+        db.commit()
+    except HTTPException:
+        db.rollback(); raise
+    return {"dispatch_id": dispatch.id, "status": "cancelled"}
 
 
 @router.get("")
@@ -189,3 +227,36 @@ def available_coordinators(center_id: int, db: Session = Depends(get_db),
     rows = db.query(User).filter(User.center_id == center_id, User.role == "coordinator",
                                  User.is_active == True).all()  # noqa: E712
     return [{"user_id": u.id, "username": u.username, "center_id": u.center_id} for u in rows]
+
+
+@router.post("/{dispatch_id}/cancel")
+def cancel_dispatch(dispatch_id: int, db: Session = Depends(get_db),
+                    user: dict = Depends(require_role("coordinator", "administrator"))):
+    """Cancel a not-yet-delivered dispatch: restores plan to draft, site to
+    unserved, returns the deducted stock to the depot, frees the driver."""
+    dispatch = db.query(Dispatch).get(dispatch_id)
+    if not dispatch:
+        raise HTTPException(status_code=404, detail="Dispatch not found")
+    if dispatch.status == "delivered":
+        raise HTTPException(status_code=409, detail="Cannot cancel a delivered dispatch")
+
+    from app.models import Plan, PlanItem, Inventory
+    for r in dispatch.resources_loaded or []:
+        row = db.query(Inventory).filter(
+            Inventory.depot_id == dispatch.depot_id,
+            Inventory.resource_type == r.get("resource_type")).first()
+        if row:
+            row.quantity += int(r.get("quantity", 0))
+        else:
+            db.add(Inventory(depot_id=dispatch.depot_id,
+                             resource_type=r.get("resource_type"),
+                             quantity=int(r.get("quantity", 0))))
+
+    db.query(Site).filter(Site.id == dispatch.site_id).update({"status": "unserved"})
+    if dispatch.plan_id:
+        db.query(Plan).filter(Plan.id == dispatch.plan_id).update({"status": "draft"})
+    if dispatch.driver_id:
+        db.query(Driver).filter(Driver.id == dispatch.driver_id).update({"status": "available"})
+    dispatch.status = "cancelled"
+    db.commit()
+    return {"dispatch_id": dispatch.id, "status": "cancelled"}

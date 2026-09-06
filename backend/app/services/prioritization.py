@@ -15,7 +15,9 @@ def priority_score(site: dict, now: datetime) -> float:
     if now.tzinfo is None:
         now = now.replace(tzinfo=timezone.utc)
     hours_since_report = (now - last).total_seconds() / 3600
-    score += hours_since_report * 5
+    # saturated time weight: urgency rises for waiting sites but can never
+    # dominate severity/population after long delays
+    score += min(hours_since_report, 48.0) * 5
     return score
 
 
