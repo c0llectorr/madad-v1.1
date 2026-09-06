@@ -30,35 +30,20 @@ export async function loadStoredToken(): Promise<string | null> {
 
 export async function api<T = any>(
   path: string,
-  options: { method?: string; body?: any } = {},
+  options: { method?: string; body?: any; signal?: AbortSignal } = {},
 ): Promise<T> {
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), 15000);
-  try {
-    const res = await fetch(`${API_BASE}${path}`, {
-      method: options.method ?? 'GET',
-      headers: {
-        'Content-Type': 'application/json',
-        ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      },
-      body: options.body !== undefined ? JSON.stringify(options.body) : undefined,
-      signal: controller.signal,
-    });
-    const data = res.status === 204 ? null : await res.json().catch(() => null);
-    if (res.status === 401 && !path.startsWith('/auth/')) {
-      await setToken(null);
-      onUnauthorized?.();
-      throw new Error('Session expired — please log in again');
-    }
-    if (!res.ok) {
-      const detail = data?.detail ?? `Request failed (${res.status})`;
-      throw new Error(typeof detail === 'string' ? detail : JSON.stringify(detail));
-    }
-    return data as T;
-  } catch (e: any) {
-    if (e?.name === 'AbortError') throw new Error('Request timed out — check your connection');
-    throw e;
-  } finally {
-    clearTimeout(timer);
+  const res = await fetch(`${API_BASE}${path}`, {
+    method: options.method ?? 'GET',
+    headers: {
+      'Content-Type': 'application/json',
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
+    body: options.body !== undefined ? JSON.stringify(options.body) : undefined,
+    signal: options.signal,
+  });
+  const data = res.status === 204 ? null : await res.json().catch(() => null);
+  if (!res.ok) {
+    const detail = data?.detail ?? `Request failed (${res.status})`;
+    throw new Error(typeof detail === 'string' ? detail : JSON.stringify(detail));
   }
 }

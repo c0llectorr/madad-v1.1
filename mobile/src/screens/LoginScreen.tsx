@@ -1,4 +1,4 @@
-import React, { useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
   Animated,
   Pressable,
@@ -40,6 +40,9 @@ function mapApiError(raw: string): string {
   if (l.includes('deactivated')) {
     return 'This account has been deactivated. Contact your administrator.';
   }
+  if (l.includes('request timed out') || l.includes('login timed out')) {
+    return 'The server didn\'t respond in time. Please check your connection and try again.';
+  }
   if (
     l.includes('network request failed') ||
     l.includes('failed to fetch') ||
@@ -71,14 +74,28 @@ export default function LoginScreen({ onLogin }: { onLogin: (r: LoginResponse) =
   const [touched, setTouched] = useState({ username: false, password: false });
   const [apiError, setApiError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  // counts down from LOGIN_TIMEOUT_SECS to 0 while a request is in-flight
+  const [countdown, setCountdown] = useState<number | null>(null);
 
   const passwordRef = useRef<TextInput>(null);
   const shakeAnim = useRef(new Animated.Value(0)).current;
+  const abortRef = useRef<AbortController | null>(null);
+  const countdownRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  const LOGIN_TIMEOUT_SECS = 60;
 
   /* ── derived validation ─────────────────────────────────────── */
   const usernameErr = touched.username ? validateUsername(username) : null;
   const passwordErr = touched.password ? validatePassword(password) : null;
   const canSubmit = !busy && !validateUsername(username) && !validatePassword(password);
+
+  /* ── clean up countdown timer on unmount ────────────────────── */
+  useEffect(() => {
+    return () => {
+      if (countdownRef.current) clearInterval(countdownRef.current);
+      abortRef.current?.abort();
+    };
+  }, []);
 
   /* ── shake on auth error ────────────────────────────────────── */
   const shake = () => {
@@ -94,24 +111,60 @@ export default function LoginScreen({ onLogin }: { onLogin: (r: LoginResponse) =
 
   /* ── submit ─────────────────────────────────────────────────── */
   const submit = async () => {
+    // Trim both fields before any validation or API call
+    const trimmedUsername = username.trim();
+    const trimmedPassword = password.trim();
+    setUsername(trimmedUsername);
+    setPassword(trimmedPassword);
+
     // Mark both fields touched so errors appear
     setTouched({ username: true, password: true });
-    if (validateUsername(username) || validatePassword(password)) return;
+    if (validateUsername(trimmedUsername) || validatePassword(trimmedPassword)) return;
 
     setBusy(true);
     setApiError(null);
+
+    // Set up AbortController for the 60-second timeout
+    const controller = new AbortController();
+    abortRef.current = controller;
+
+    // Start visible countdown
+    setCountdown(LOGIN_TIMEOUT_SECS);
+    countdownRef.current = setInterval(() => {
+      setCountdown(prev => {
+        if (prev === null || prev <= 1) {
+          clearInterval(countdownRef.current!);
+          countdownRef.current = null;
+          return null;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+
+    // Hard-abort after 60 s
+    const timeoutId = setTimeout(() => controller.abort(), LOGIN_TIMEOUT_SECS * 1000);
+
     try {
       const res = await api<LoginResponse>('/auth/login', {
         method: 'POST',
-        body: { username: username.trim(), password },
+        body: { username: trimmedUsername, password: trimmedPassword },
+        signal: controller.signal,
       });
+      clearTimeout(timeoutId);
       await setToken(res.access_token);
       onLogin(res);
     } catch (e: any) {
-      const msg = mapApiError(e.message ?? 'Unknown error');
+      clearTimeout(timeoutId);
+      const isAbort = e?.name === 'AbortError' || controller.signal.aborted;
+      const raw = isAbort ? 'Login timed out' : (e.message ?? 'Unknown error');
+      const msg = mapApiError(raw);
       setApiError(msg);
       shake();
     } finally {
+      clearInterval(countdownRef.current!);
+      countdownRef.current = null;
+      setCountdown(null);
+      abortRef.current = null;
       setBusy(false);
     }
   };
@@ -158,7 +211,9 @@ export default function LoginScreen({ onLogin }: { onLogin: (r: LoginResponse) =
                   setUsername(t);
                   setApiError(null);
                 }}
-                onBlur={() => setTouched(p => ({ ...p, username: true }))}
+                onBlur={() => {
+                  setTouched(p => ({ ...p, username: true }));
+                }}
                 placeholder="Coordinator ID or username"
                 placeholderTextColor={C.outline}
                 autoCapitalize="none"
@@ -188,7 +243,9 @@ export default function LoginScreen({ onLogin }: { onLogin: (r: LoginResponse) =
                   setPassword(t);
                   setApiError(null);
                 }}
-                onBlur={() => setTouched(p => ({ ...p, password: true }))}
+                onBlur={() => {
+                  setTouched(p => ({ ...p, password: true }));
+                }}
                 placeholder="Enter your password"
                 placeholderTextColor={C.outline}
                 autoCapitalize="none"
@@ -238,6 +295,17 @@ export default function LoginScreen({ onLogin }: { onLogin: (r: LoginResponse) =
             </Text>
             {!busy && <Text style={s.submitArrow}> →</Text>}
           </Pressable>
+
+          {/* countdown shown while waiting for server response */}
+          {countdown !== null ? (
+            <Text style={s.countdown}>
+              {countdown > 10
+                ? `Waiting for server… (${countdown}s)`
+                : countdown > 0
+                  ? `Still waiting… timing out in ${countdown}s`
+                  : 'Request timed out.'}
+            </Text>
+          ) : null}
 
           <Text style={s.hint}>
             Having trouble? Contact your MADAD administrator.
@@ -376,5 +444,12 @@ const s = StyleSheet.create({
     ...T.labelSm,
     color: C.onSurfaceVariant,
     textAlign: 'center',
+  },
+
+  countdown: {
+    ...T.labelSm,
+    color: C.onSurfaceVariant,
+    textAlign: 'center',
+    marginBottom: 12,
   },
 });

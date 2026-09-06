@@ -9,7 +9,7 @@ export interface LeafMarker {
   title: string;
   snippet?: string;
   color?: string;   // pin color, CSS
-  icon?: 'pin' | 'dot';
+  icon?: 'pin' | 'dot' | 'circle';
   label?: string;   // single character shown inside the pin
 }
 
@@ -50,6 +50,11 @@ const HTML = `<!DOCTYPE html>
   .madad-dot {
     width: 14px; height: 14px; border-radius: 50%;
     border: 2px solid #fff; box-shadow: 1px 2px 4px rgba(0,0,0,0.35);
+  }
+  .madad-circle {
+    width: 20px; height: 20px; border-radius: 50%;
+    border: 3px solid rgba(255,255,255,0.85);
+    box-shadow: 0 0 0 2px rgba(0,0,0,0.18), 0 2px 6px rgba(0,0,0,0.30);
   }
   .madad-pin div, .madad-dot div { transform: rotate(45deg); }
   .madad-pin-label {
@@ -99,11 +104,11 @@ const HTML = `<!DOCTYPE html>
     }
     return L.divIcon({
       className: '',
-      html: '<div class="' + (kind === 'dot' ? 'madad-dot' : 'madad-pin') +
+      html: '<div class="' + (kind === 'dot' ? 'madad-dot' : kind === 'circle' ? 'madad-circle' : 'madad-pin') +
             '" style="background:' + color + '"></div>',
-      iconSize: kind === 'dot' ? [14, 14] : [22, 22],
-      iconAnchor: kind === 'dot' ? [7, 7] : [11, 20],
-      popupAnchor: [0, -18]
+      iconSize: kind === 'dot' ? [14, 14] : kind === 'circle' ? [20, 20] : [22, 22],
+      iconAnchor: kind === 'dot' ? [7, 7] : kind === 'circle' ? [10, 10] : [11, 20],
+      popupAnchor: [0, -12]
     });
   }
 

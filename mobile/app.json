@@ -3,8 +3,10 @@
 		"name": "MADAD",
 		"slug": "madad",
 		"version": "1.2.0",
+		"description": "Relief coordination for support centers",
 		"orientation": "portrait",
 		"icon": "./assets/icon.png",
+		"scheme": "madad",
 		"userInterfaceStyle": "light",
 		"ios": {
 			"supportsTablet": true
@@ -16,10 +18,14 @@
 				"backgroundImage": "./assets/android-icon-background.png",
 				"monochromeImage": "./assets/android-icon-monochrome.png"
 			},
-			"predictiveBackGestureEnabled": false
+			"predictiveBackGestureEnabled": true
 		},
 		"web": {
 			"favicon": "./assets/favicon.png"
+		},
+		"experiments": {
+			"typedRoutes": false,
+			"reactCompiler": true
 		}
 	}
 }
