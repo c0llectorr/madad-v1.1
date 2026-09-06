@@ -149,7 +149,7 @@ export default function CoordinatorNavigator({ session, onLogout }: { session: L
         )}
         {tab === 'map' && (
           <MapPage centerId={centerId} sites={sites} depots={depots} damaged={damaged}
-                   centers={centers.filter(cn => cn.id === centerId)}
+                   centers={centers}
                    dispatches={dispatches.filter(d => d.dispatched_by === session.user_id)} refresh={refresh}
                    currentUserId={session.user_id}
                    onOpenRoute={openRoute} />

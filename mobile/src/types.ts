@@ -27,7 +27,7 @@ export interface ReportRow {
   created_at: string;
   structured_fields?: { location_name: string; headcount: number; severity?: string; needs: string[] } | null;
 }
-export interface DispatchRow { dispatch_id: number; site_id: number; depot_id: number; status: string; distance_km: number | null; eta_minutes: number | null; route_geojson: any; resources_loaded: any[]; assigned_to?: number | null; driver_id?: number | null; plan_id?: number | null; dispatched_by?: number | null }
+export interface DispatchRow { dispatch_id: number; site_id: number; depot_id: number; status: string; distance_km: number | null; eta_minutes: number | null; route_geojson: any; resources_loaded: any[]; assigned_to?: number | null; driver_id?: number | null; plan_id?: number | null; dispatched_by?: number | null; driver_username?: string | null }
 export interface PlanT {
   plan_id: number; site_id: number; center_id: number; status: 'draft' | 'finalized' | 'assigned';
   source: string; reasoning: string | null;

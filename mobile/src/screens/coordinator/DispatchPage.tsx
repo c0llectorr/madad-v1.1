@@ -112,7 +112,7 @@ export function DispatchPage({ centerId, sites, depots, dispatches, plans, refre
               </View>
               <Text style={[T.bodyMd, { color: C.onSurfaceVariant, marginTop: 4 }]}>
                 {d.distance_km != null ? `${d.distance_km.toFixed(1)} km` : '—'} · ETA {d.eta_minutes ?? '—'} min
-                {d.driver_id ? ` · driver #${d.driver_id}` : ' · unassigned'}
+                {d.driver_username ? ` · 🚚 ${d.driver_username}` : ' · unassigned'}
               </Text>
               <View style={{ flexDirection: 'row', marginTop: 10 }}>
                 {d.status === 'planned' && (

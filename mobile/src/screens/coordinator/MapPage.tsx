@@ -202,6 +202,7 @@ export function MapPage({ centerId, sites, depots, damaged, centers, dispatches,
       id: `r${d.dispatch_id}`,
       coords: d.route_geojson.coordinates.map((c: number[]) => ({ lat: c[1], lng: c[0] })),
       color: C.primaryFixedDim, width: 4, dashed: true,
+      tooltip: `🚚 ${d.driver_username ?? 'Unassigned'} → ${sites.find(s => s.id === d.site_id)?.location_name ?? 'destination'}`,
     })) : []),
   ], [damaged, dispatches, layers]);
 
@@ -220,7 +221,7 @@ export function MapPage({ centerId, sites, depots, damaged, centers, dispatches,
           polygons={floodPolygons}
           center={myLocation ?? { lat: 29.85, lng: 70.45 }}
           zoom={myLocation ? 12 : 8}
-          fit={!myLocation && (markers.length > 0 || polylines.length > 0 || floodPolygons.length > 0)}
+          fit={markers.length > 0 || polylines.length > 0 || floodPolygons.length > 0}
           onMapPress={handleMapTap}
         />
         {/* Flood impact summary — extent & direction of the flood so far */}

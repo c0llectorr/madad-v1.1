@@ -175,13 +175,19 @@ def list_dispatches(center_id: int | None = None, db: Session = Depends(get_db),
     q = db.query(Dispatch)
     if center_id:
         q = q.filter(Dispatch.center_id == center_id)
+    driver_user_ids = {d.driver_id for d in q.all() if d.driver_id}
+    driver_usernames = {}
+    if driver_user_ids:
+        for du in db.query(User).filter(User.id.in_(driver_user_ids)).all():
+            driver_usernames[du.id] = du.username
     return [{"dispatch_id": d.id, "site_id": d.site_id, "depot_id": d.depot_id,
              "status": d.status, "distance_km": d.distance_km, "eta_minutes": d.eta_minutes,
              "route_geojson": d.route_geojson,
              "resources_loaded": d.resources_loaded, "created_at": d.created_at,
              "assigned_to": d.assigned_to, "driver_id": d.driver_id, "plan_id": d.plan_id,
-             "dispatched_by": d.dispatched_by}
-            for d in q.order_by(Dispatch.created_at.desc()).all()]
+             "dispatched_by": d.dispatched_by,
+             "driver_username": driver_usernames.get(d.driver_id) if d.driver_id else None
+             } for d in q.order_by(Dispatch.created_at.desc()).all()]
 
 
 @router.post("/{dispatch_id}/assign")
