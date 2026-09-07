@@ -16,6 +16,7 @@ import { ActiveRouteModal } from './modals/ActiveRouteModal';
 import { AssignSiteModal } from './modals/AssignSiteModal';
 import PlanEditorModal from './modals/PlanEditorModal';
 import AssignDriverModal from './modals/AssignDriverModal';
+import FlagDamageScreen from '../../components/FlagDamageScreen';
 import type { PlanT } from '../../types';
 
 type Sub = null

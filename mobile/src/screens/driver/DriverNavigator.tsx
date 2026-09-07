@@ -4,6 +4,7 @@ import { api } from '../../api';
 import { AppBar, BottomNav, Button, Card, Err, Loading, SectionTitle, StatusChip } from '../../components';
 import { C, T } from '../../theme';
 import { ActiveRouteModal } from '../coordinator/modals/ActiveRouteModal';
+import FlagDamageScreen from '../../components/FlagDamageScreen';
 import type { LoginResponse } from '../../types';
 
 interface DriverDispatch {
