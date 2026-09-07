@@ -1,6 +1,11 @@
-import React, { useCallback, useImperativeHandle, useMemo, useRef } from 'react';
-import { StyleSheet, View } from 'react-native';
-import { WebView, WebViewNavigation } from 'react-native-webview';
+import React, {
+  useCallback,
+  useImperativeHandle,
+  useMemo,
+  useRef,
+} from "react";
+import { StyleSheet, View } from "react-native";
+import { WebView, WebViewNavigation } from "react-native-webview";
 
 export interface LeafMarker {
   id: string;
@@ -8,9 +13,9 @@ export interface LeafMarker {
   lng: number;
   title: string;
   snippet?: string;
-  color?: string;   // pin color, CSS
-  icon?: 'pin' | 'dot';
-  label?: string;   // single character shown inside the pin
+  color?: string; // pin color, CSS
+  icon?: "pin" | "dot" | "circle";
+  label?: string; // single character shown inside the pin
 }
 
 export interface LeafPolygon {
@@ -19,6 +24,15 @@ export interface LeafPolygon {
   color: string;
   fillOpacity?: number;
   dashed?: boolean;
+}
+
+export interface LeafCircle {
+  id: string;
+  lat: number;
+  lng: number;
+  radiusMeters: number;
+  color: string;
+  fillOpacity?: number;
 }
 
 export interface LeafPolyline {
@@ -51,6 +65,11 @@ const HTML = `<!DOCTYPE html>
     width: 14px; height: 14px; border-radius: 50%;
     border: 2px solid #fff; box-shadow: 1px 2px 4px rgba(0,0,0,0.35);
   }
+  .madad-circle {
+    width: 20px; height: 20px; border-radius: 50%;
+    border: 3px solid rgba(255,255,255,0.85);
+    box-shadow: 0 0 0 2px rgba(0,0,0,0.18), 0 2px 6px rgba(0,0,0,0.30);
+  }
   .madad-pin div, .madad-dot div { transform: rotate(45deg); }
   .madad-pin-label {
     width: 28px; height: 28px; border-radius: 50% 50% 50% 0;
@@ -65,6 +84,14 @@ const HTML = `<!DOCTYPE html>
     text-shadow: 0 1px 2px rgba(0,0,0,0.4);
   }
   .leaflet-popup-content-wrapper { border-radius: 8px; }
+  @keyframes flood-pulse {
+    0%   { opacity: 1; }
+    50%  { opacity: 0.45; }
+    100% { opacity: 1; }
+  }
+  .flood-circle-path {
+    animation: flood-pulse 2s ease-in-out infinite;
+  }
 </style>
 </head>
 <body>
@@ -85,6 +112,40 @@ const HTML = `<!DOCTYPE html>
 
   var layers = { markers: L.layerGroup().addTo(map), lines: L.layerGroup().addTo(map) };
   var allPts = [];
+  var lastCircleData = []; // stored so zoom changes can re-render circles
+
+  // Returns the ground radius in metres that corresponds to MIN_PX pixels
+  // at the current zoom level and given latitude.
+  var MIN_PX = 20;
+  function minRadiusMeters(lat) {
+    var zoom = map.getZoom();
+    // Leaflet's metres-per-pixel at a given lat/zoom:
+    // 156543.03392 * cos(lat) / 2^zoom
+    var mpp = 156543.03392 * Math.cos(lat * Math.PI / 180) / Math.pow(2, zoom);
+    return mpp * MIN_PX;
+  }
+
+  function drawCircles(circleData) {
+    if (layers.areas) layers.areas.clearLayers();
+    layers.areas = L.layerGroup().addTo(map);
+    circleData.forEach(function (ci) {
+      var r = Math.max(ci.radiusMeters, minRadiusMeters(ci.lat));
+      var circle = L.circle([ci.lat, ci.lng], {
+        radius: r,
+        color: ci.color,
+        weight: 2.5,
+        fillColor: ci.color,
+        fillOpacity: ci.fillOpacity != null ? ci.fillOpacity : 0.18,
+        className: 'flood-circle-path',
+      }).addTo(layers.areas);
+      circle.bindPopup('<b>🌊 Flood Zone</b>');
+    });
+  }
+
+  // Re-draw circles on zoom so the minimum pixel size is always respected
+  map.on('zoomend', function () {
+    if (lastCircleData.length > 0) drawCircles(lastCircleData);
+  });
 
   function pinIcon(color, kind, label) {
     if (label) {
@@ -99,11 +160,11 @@ const HTML = `<!DOCTYPE html>
     }
     return L.divIcon({
       className: '',
-      html: '<div class="' + (kind === 'dot' ? 'madad-dot' : 'madad-pin') +
+      html: '<div class="' + (kind === 'dot' ? 'madad-dot' : kind === 'circle' ? 'madad-circle' : 'madad-pin') +
             '" style="background:' + color + '"></div>',
-      iconSize: kind === 'dot' ? [14, 14] : [22, 22],
-      iconAnchor: kind === 'dot' ? [7, 7] : [11, 20],
-      popupAnchor: [0, -18]
+      iconSize: kind === 'dot' ? [14, 14] : kind === 'circle' ? [20, 20] : [22, 22],
+      iconAnchor: kind === 'dot' ? [7, 7] : kind === 'circle' ? [10, 10] : [11, 20],
+      popupAnchor: [0, -12]
     });
   }
 
@@ -117,8 +178,6 @@ const HTML = `<!DOCTYPE html>
   window.__render = function (payload) {
     layers.markers.clearLayers();
     layers.lines.clearLayers();
-    if (layers.areas) layers.areas.clearLayers();
-    layers.areas = L.layerGroup().addTo(map);
     var pts = [];
     (payload.polygons || []).forEach(function (pg) {
       var ll = (pg.coords || []).map(function (c) { return [c.lat, c.lng]; });
@@ -129,6 +188,8 @@ const HTML = `<!DOCTYPE html>
         }).addTo(layers.areas);
       }
     });
+    lastCircleData = payload.circles || [];
+    drawCircles(lastCircleData);
     (payload.polylines || []).forEach(function (p) {
       var ll = (p.coords || []).map(function (c) { return [c.lat, c.lng]; });
       if (ll.length > 1) {
@@ -155,12 +216,16 @@ const HTML = `<!DOCTYPE html>
       marker.addTo(layers.markers);
       pts.push([m.lat, m.lng]);
     });
+    // Include circle centres so fitAll/fit covers flood zones too
+    (payload.circles || []).forEach(function (ci) {
+      pts.push([ci.lat, ci.lng]);
+    });
     allPts = pts;
     if (payload.fit && pts.length >= 1) {
       if (pts.length === 1) {
-        map.setView(pts[0], 13, { animate: false });
+        map.setView(pts[0], 13, { animate: true });
       } else {
-        map.fitBounds(L.latLngBounds(pts).pad(0.2), { animate: false, maxZoom: 14 });
+        map.fitBounds(L.latLngBounds(pts).pad(0.2), { animate: true, maxZoom: 14 });
       }
     }
   };
@@ -192,34 +257,52 @@ const HTML = `<!DOCTYPE html>
 </body>
 </html>`;
 
-const LeafletMap = React.forwardRef<LeafletMapHandle, {
-  height?: number;
-  markers?: LeafMarker[];
-  polylines?: LeafPolyline[];
-  polygons?: LeafPolygon[];
-  onMapPress?: (lat: number, lng: number) => void;
-  center?: { lat: number; lng: number };
-  zoom?: number;
-  fit?: boolean;
-}>(function LeafletMap({
-  height, markers = [], polylines = [], polygons = [], onMapPress,
-  center = { lat: 29.85, lng: 70.45 }, zoom = 9, fit = false,
-}, ref) {
+const LeafletMap = React.forwardRef<
+  LeafletMapHandle,
+  {
+    height?: number;
+    markers?: LeafMarker[];
+    polylines?: LeafPolyline[];
+    polygons?: LeafPolygon[];
+    circles?: LeafCircle[];
+    onMapPress?: (lat: number, lng: number) => void;
+    center?: { lat: number; lng: number };
+    zoom?: number;
+    fit?: boolean;
+  }
+>(function LeafletMap(
+  {
+    height,
+    markers = [],
+    polylines = [],
+    polygons = [],
+    circles = [],
+    onMapPress,
+    center = { lat: 29.85, lng: 70.45 },
+    zoom = 9,
+    fit = false,
+  },
+  ref,
+) {
   const webRef = useRef<WebView>(null);
 
   const html = useMemo(
-    () => HTML.replace('__LAT__', String(center.lat))
-              .replace('__LNG__', String(center.lng))
-              .replace('__ZOOM__', String(zoom)),
+    () =>
+      HTML.replace("__LAT__", String(center.lat))
+        .replace("__LNG__", String(center.lng))
+        .replace("__ZOOM__", String(zoom)),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    []);   // HTML is fixed at mount — center/zoom are only the initial view
+    [],
+  ); // HTML is fixed at mount — center/zoom are only the initial view
 
-    // JSON.stringify does not escape "</script>" — escape "<" so user-supplied
+  // JSON.stringify does not escape "</script>" — escape "<" so user-supplied
   // titles/reasons can never break out of the inline <script> block.
-  const safeJson = (v: unknown) => JSON.stringify(v).replace(/</g, '\\u003c');
+  const safeJson = (v: unknown) => JSON.stringify(v).replace(/</g, "\\u003c");
   const payload = useMemo(
-    () => `window.__render && window.__render(${safeJson({ markers, polylines, polygons, fit })}); true;`,
-    [markers, polylines, polygons, fit]);
+    () =>
+      `window.__render && window.__render(${JSON.stringify({ markers, polylines, polygons, circles, fit })}); true;`,
+    [markers, polylines, polygons, circles, fit],
+  );
 
   // Track readiness so a center prop set before the map engine loads is
   // applied as soon as (re)inject runs — e.g. a prefilled geocoded location.
@@ -234,57 +317,76 @@ const LeafletMap = React.forwardRef<LeafletMapHandle, {
     // happen on every data change and must not yank the view back.
     webRef.current?.injectJavaScript(
       `window.__invalidate && window.__invalidate(); ` +
-      `window.__render && window.__render(${JSON.stringify({ markers, polylines, polygons, fit })}); true;`
+        `window.__render && window.__render(${JSON.stringify({ markers, polylines, polygons, circles, fit })}); true;`,
     );
-  }, [markers, polylines, polygons, fit]);
+  }, [markers, polylines, polygons, circles, fit]);
 
   // Re-center whenever the caller changes center after mount (geocode results).
   React.useEffect(() => {
     if (readyRef.current) {
       webRef.current?.injectJavaScript(
-        `window.__flyTo && window.__flyTo(${center.lat}, ${center.lng}, ${zoom}); true;`
+        `window.__flyTo && window.__flyTo(${center.lat}, ${center.lng}, ${zoom}); true;`,
       );
     }
   }, [center.lat, center.lng, zoom]);
 
-  useImperativeHandle(ref, () => ({
-    flyTo(lat, lng, z = 13) {
-      webRef.current?.injectJavaScript(
-        `window.__flyTo && window.__flyTo(${lat}, ${lng}, ${z}); true;`
-      );
-    },
-    fitAll() {
-      webRef.current?.injectJavaScript(`window.__fitAll && window.__fitAll(); true;`);
-    },
-  }), []);
-
-  const onMessage = useCallback((e: any) => {
-    try {
-      const msg = JSON.parse(e.nativeEvent.data);
-      if (msg.type === 'click' && onMapPress) onMapPress(msg.lat, msg.lng);
-      else if (msg.type === 'ready') {
-        const first = !readyRef.current;
-        readyRef.current = true;
-        inject();
-        if (first) {
-          const c = centerRef.current;
+  useImperativeHandle(
+    ref,
+    () => ({
+      flyTo(lat, lng, z = 13) {
+        webRef.current?.injectJavaScript(
+          `window.__flyTo && window.__flyTo(${lat}, ${lng}, ${z}); true;`,
+        );
+      },
+      fitAll() {
+        // Delay slightly longer than UpdateHook's 300ms debounce so the latest
+        // markers/circles are already injected before we call fitBounds.
+        setTimeout(() => {
           webRef.current?.injectJavaScript(
-            `window.__flyTo && window.__flyTo(${c.lat}, ${c.lng}, ${zoomRef.current}); true;`
+            `window.__fitAll && window.__fitAll(); true;`,
           );
-        }
-      }
-    } catch { /* ignore malformed messages */ }
-  }, [onMapPress, inject]);
+        }, 350);
+      },
+    }),
+    [],
+  );
 
-  const onNavigation = useCallback((req: WebViewNavigation) =>
-    req.url.startsWith('about:') || req.url.startsWith('https://unpkg.com') ||
-    req.url.startsWith('https://tile.openstreetmap.org'), []);
+  const onMessage = useCallback(
+    (e: any) => {
+      try {
+        const msg = JSON.parse(e.nativeEvent.data);
+        if (msg.type === "click" && onMapPress) onMapPress(msg.lat, msg.lng);
+        else if (msg.type === "ready") {
+          const first = !readyRef.current;
+          readyRef.current = true;
+          inject();
+          if (first) {
+            const c = centerRef.current;
+            webRef.current?.injectJavaScript(
+              `window.__flyTo && window.__flyTo(${c.lat}, ${c.lng}, ${zoomRef.current}); true;`,
+            );
+          }
+        }
+      } catch {
+        /* ignore malformed messages */
+      }
+    },
+    [onMapPress, inject],
+  );
+
+  const onNavigation = useCallback(
+    (req: WebViewNavigation) =>
+      req.url.startsWith("about:") ||
+      req.url.startsWith("https://unpkg.com") ||
+      req.url.startsWith("https://tile.openstreetmap.org"),
+    [],
+  );
 
   return (
     <View style={[styles.wrap, height != null ? { height } : { flex: 1 }]}>
       <WebView
         ref={webRef}
-        originWhitelist={['*']}
+        originWhitelist={["*"]}
         source={{ html }}
         javaScriptEnabled
         domStorageEnabled
@@ -305,7 +407,13 @@ export default LeafletMap;
 
 // Re-injects whenever markers/polylines change, with a small debounce
 // to let the WebView settle after navigation/layout changes.
-function UpdateHook({ payload, onReady }: { payload: string; onReady: () => void }) {
+function UpdateHook({
+  payload,
+  onReady,
+}: {
+  payload: string;
+  onReady: () => void;
+}) {
   React.useEffect(() => {
     const t = setTimeout(onReady, 300);
     return () => clearTimeout(t);
@@ -314,6 +422,6 @@ function UpdateHook({ payload, onReady }: { payload: string; onReady: () => void
 }
 
 const styles = StyleSheet.create({
-  wrap: { overflow: 'hidden', backgroundColor: '#F2F2ED' },
-  web: { flex: 1, backgroundColor: 'transparent' },
+  wrap: { overflow: "hidden", backgroundColor: "#F2F2ED" },
+  web: { flex: 1, backgroundColor: "transparent" },
 });
