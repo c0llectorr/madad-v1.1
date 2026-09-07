@@ -1,4 +1,4 @@
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 from typing import Literal
 
 
@@ -34,6 +34,11 @@ class DepotCreate(BaseModel):
 class InventoryUpdate(BaseModel):
     resource_type: str
     quantity_delta: int
+
+    @field_validator("resource_type")
+    @classmethod
+    def normalise_resource_type(cls, v: str) -> str:
+        return v.strip().lower()
 
 
 # --- REPORTS ---
@@ -101,6 +106,11 @@ class DispatchResource(BaseModel):
     resource_type: str
     quantity: int = Field(gt=0)
 
+    @field_validator("resource_type")
+    @classmethod
+    def normalise_resource_type(cls, v: str) -> str:
+        return v.strip().lower()
+
 
 class DispatchCreate(BaseModel):
     site_id: int
@@ -118,6 +128,11 @@ class AssignRequest(BaseModel):
 class PlanItemIn(BaseModel):
     resource_type: str
     quantity: int = Field(gt=0)
+
+    @field_validator("resource_type")
+    @classmethod
+    def normalise_resource_type(cls, v: str) -> str:
+        return v.strip().lower()
 
 class PlanItemsUpdate(BaseModel):
     items: list[PlanItemIn]

@@ -21,6 +21,15 @@ export interface LeafPolygon {
   dashed?: boolean;
 }
 
+export interface LeafCircle {
+  id: string;
+  lat: number;
+  lng: number;
+  radiusMeters: number;
+  color: string;
+  fillOpacity?: number;
+}
+
 export interface LeafPolyline {
   id: string;
   coords: { lat: number; lng: number }[];
@@ -70,6 +79,14 @@ const HTML = `<!DOCTYPE html>
     text-shadow: 0 1px 2px rgba(0,0,0,0.4);
   }
   .leaflet-popup-content-wrapper { border-radius: 8px; }
+  @keyframes flood-pulse {
+    0%   { opacity: 1; }
+    50%  { opacity: 0.45; }
+    100% { opacity: 1; }
+  }
+  .flood-circle-path {
+    animation: flood-pulse 2s ease-in-out infinite;
+  }
 </style>
 </head>
 <body>
@@ -90,6 +107,40 @@ const HTML = `<!DOCTYPE html>
 
   var layers = { markers: L.layerGroup().addTo(map), lines: L.layerGroup().addTo(map) };
   var allPts = [];
+  var lastCircleData = []; // stored so zoom changes can re-render circles
+
+  // Returns the ground radius in metres that corresponds to MIN_PX pixels
+  // at the current zoom level and given latitude.
+  var MIN_PX = 20;
+  function minRadiusMeters(lat) {
+    var zoom = map.getZoom();
+    // Leaflet's metres-per-pixel at a given lat/zoom:
+    // 156543.03392 * cos(lat) / 2^zoom
+    var mpp = 156543.03392 * Math.cos(lat * Math.PI / 180) / Math.pow(2, zoom);
+    return mpp * MIN_PX;
+  }
+
+  function drawCircles(circleData) {
+    if (layers.areas) layers.areas.clearLayers();
+    layers.areas = L.layerGroup().addTo(map);
+    circleData.forEach(function (ci) {
+      var r = Math.max(ci.radiusMeters, minRadiusMeters(ci.lat));
+      var circle = L.circle([ci.lat, ci.lng], {
+        radius: r,
+        color: ci.color,
+        weight: 2.5,
+        fillColor: ci.color,
+        fillOpacity: ci.fillOpacity != null ? ci.fillOpacity : 0.18,
+        className: 'flood-circle-path',
+      }).addTo(layers.areas);
+      circle.bindPopup('<b>🌊 Flood Zone</b>');
+    });
+  }
+
+  // Re-draw circles on zoom so the minimum pixel size is always respected
+  map.on('zoomend', function () {
+    if (lastCircleData.length > 0) drawCircles(lastCircleData);
+  });
 
   function pinIcon(color, kind, label) {
     if (label) {
@@ -122,8 +173,6 @@ const HTML = `<!DOCTYPE html>
   window.__render = function (payload) {
     layers.markers.clearLayers();
     layers.lines.clearLayers();
-    if (layers.areas) layers.areas.clearLayers();
-    layers.areas = L.layerGroup().addTo(map);
     var pts = [];
     (payload.polygons || []).forEach(function (pg) {
       var ll = (pg.coords || []).map(function (c) { return [c.lat, c.lng]; });
@@ -134,6 +183,8 @@ const HTML = `<!DOCTYPE html>
         }).addTo(layers.areas);
       }
     });
+    lastCircleData = payload.circles || [];
+    drawCircles(lastCircleData);
     (payload.polylines || []).forEach(function (p) {
       var ll = (p.coords || []).map(function (c) { return [c.lat, c.lng]; });
       if (ll.length > 1) {
@@ -160,12 +211,16 @@ const HTML = `<!DOCTYPE html>
       marker.addTo(layers.markers);
       pts.push([m.lat, m.lng]);
     });
+    // Include circle centres so fitAll/fit covers flood zones too
+    (payload.circles || []).forEach(function (ci) {
+      pts.push([ci.lat, ci.lng]);
+    });
     allPts = pts;
     if (payload.fit && pts.length >= 1) {
       if (pts.length === 1) {
-        map.setView(pts[0], 13, { animate: false });
+        map.setView(pts[0], 13, { animate: true });
       } else {
-        map.fitBounds(L.latLngBounds(pts).pad(0.2), { animate: false, maxZoom: 14 });
+        map.fitBounds(L.latLngBounds(pts).pad(0.2), { animate: true, maxZoom: 14 });
       }
     }
   };
@@ -202,12 +257,13 @@ const LeafletMap = React.forwardRef<LeafletMapHandle, {
   markers?: LeafMarker[];
   polylines?: LeafPolyline[];
   polygons?: LeafPolygon[];
+  circles?: LeafCircle[];
   onMapPress?: (lat: number, lng: number) => void;
   center?: { lat: number; lng: number };
   zoom?: number;
   fit?: boolean;
 }>(function LeafletMap({
-  height, markers = [], polylines = [], polygons = [], onMapPress,
+  height, markers = [], polylines = [], polygons = [], circles = [], onMapPress,
   center = { lat: 29.85, lng: 70.45 }, zoom = 9, fit = false,
 }, ref) {
   const webRef = useRef<WebView>(null);
@@ -223,8 +279,8 @@ const LeafletMap = React.forwardRef<LeafletMapHandle, {
   // titles/reasons can never break out of the inline <script> block.
   const safeJson = (v: unknown) => JSON.stringify(v).replace(/</g, '\\u003c');
   const payload = useMemo(
-    () => `window.__render && window.__render(${safeJson({ markers, polylines, polygons, fit })}); true;`,
-    [markers, polylines, polygons, fit]);
+    () => `window.__render && window.__render(${JSON.stringify({ markers, polylines, polygons, circles, fit })}); true;`,
+    [markers, polylines, polygons, circles, fit]);
 
   // Track readiness so a center prop set before the map engine loads is
   // applied as soon as (re)inject runs — e.g. a prefilled geocoded location.
@@ -239,9 +295,9 @@ const LeafletMap = React.forwardRef<LeafletMapHandle, {
     // happen on every data change and must not yank the view back.
     webRef.current?.injectJavaScript(
       `window.__invalidate && window.__invalidate(); ` +
-      `window.__render && window.__render(${JSON.stringify({ markers, polylines, polygons, fit })}); true;`
+      `window.__render && window.__render(${JSON.stringify({ markers, polylines, polygons, circles, fit })}); true;`
     );
-  }, [markers, polylines, polygons, fit]);
+  }, [markers, polylines, polygons, circles, fit]);
 
   // Re-center whenever the caller changes center after mount (geocode results).
   React.useEffect(() => {
@@ -259,7 +315,11 @@ const LeafletMap = React.forwardRef<LeafletMapHandle, {
       );
     },
     fitAll() {
-      webRef.current?.injectJavaScript(`window.__fitAll && window.__fitAll(); true;`);
+      // Delay slightly longer than UpdateHook's 300ms debounce so the latest
+      // markers/circles are already injected before we call fitBounds.
+      setTimeout(() => {
+        webRef.current?.injectJavaScript(`window.__fitAll && window.__fitAll(); true;`);
+      }, 350);
     },
   }), []);
 
