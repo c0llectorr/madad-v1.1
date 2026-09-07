@@ -114,13 +114,33 @@ def review_report(report_id: int, payload: ReportUpdate, db: Session = Depends(g
         raise HTTPException(status_code=409, detail="Report already reviewed")
 
     extracted = report.extracted_json or {}
-    location_name = payload.location_name or extracted.get("location_name", "Unnamed location")
-    lat = payload.lat if payload.lat is not None else extracted.get("lat")
-    lng = payload.lng if payload.lng is not None else extracted.get("lng")
+
+    # For each field: prefer the payload value, then fall back to the existing
+    # site record (for structured/confirmed reports where extracted_json is None),
+    # then fall back to extracted_json, then use a safe default.
+    # This prevents a partial PATCH (e.g. only urgency_flags) from wiping the
+    # fields that were not included in the request body.
+    existing_site = db.query(Site).filter(Site.report_id == report.id).first()
+
+    location_name = (payload.location_name
+                     or (existing_site.location_name if existing_site else None)
+                     or extracted.get("location_name", "Unnamed location"))
+    lat = (payload.lat if payload.lat is not None
+           else (existing_site.lat if existing_site else None)
+           or extracted.get("lat"))
+    lng = (payload.lng if payload.lng is not None
+           else (existing_site.lng if existing_site else None)
+           or extracted.get("lng"))
     population = (payload.estimated_population if payload.estimated_population is not None
+                  else (existing_site.estimated_population if existing_site else None)
+                  if (existing_site.estimated_population if existing_site else None) is not None
                   else extracted.get("estimated_population", 0))
-    needs = payload.needs if payload.needs is not None else extracted.get("needs", [])
-    urgency_flags = payload.urgency_flags if payload.urgency_flags is not None else extracted.get("urgency_flags", [])
+    needs = (payload.needs if payload.needs is not None
+             else (existing_site.needs if existing_site else None)
+             or extracted.get("needs", []))
+    urgency_flags = (payload.urgency_flags if payload.urgency_flags is not None
+                     else (existing_site.urgency_flags if existing_site else None)
+                     or extracted.get("urgency_flags", []))
 
     if payload.status == "confirmed" and (lat is None or lng is None):
         raise HTTPException(status_code=422,
@@ -128,7 +148,7 @@ def review_report(report_id: int, payload: ReportUpdate, db: Session = Depends(g
 
     report.status = payload.status or "confirmed"
 
-    site = db.query(Site).filter(Site.report_id == report.id).first()
+    site = existing_site
     site_id = None
 
     if report.status == "confirmed":

@@ -1,109 +1,218 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
-import { KeyboardAwareScrollView } from 'react-native-keyboard-aware-scroll-view';
-import { api } from '../../api';
-import LeafletMap, { LeafMarker, LeafPolygon, LeafCircle, LeafletMapHandle } from '../../LeafletMap';
-import { C, T } from '../../theme';
-import { Button, Card, Chip, Err, Fab, Field, Loading, PillButton, Screen, SearchBox, SectionTitle, StatusChip } from '../../components';
-import { FilterChips } from '../../components/FilterChips';
-import type { Center, Coordinator, Depot } from '../../types';
+import React, { useEffect, useMemo, useRef, useState } from "react";
+import {
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
+} from "react-native";
+import { KeyboardAwareScrollView } from "react-native-keyboard-aware-scroll-view";
+import { api } from "../../api";
+import LeafletMap, {
+  LeafMarker,
+  LeafPolygon,
+  LeafCircle,
+  LeafletMapHandle,
+} from "../../LeafletMap";
+import { C, T } from "../../theme";
+import {
+  Button,
+  Card,
+  Chip,
+  Err,
+  Fab,
+  Field,
+  Loading,
+  PillButton,
+  Screen,
+  SearchBox,
+  SectionTitle,
+  StatusChip,
+} from "../../components";
+import { FilterChips } from "../../components/FilterChips";
+import type { Center, Coordinator, Depot } from "../../types";
 
-interface SiteRow { id: number; center_id: number; report_id?: number | null; location_name: string; lat: number; lng: number; estimated_population: number; needs: string[]; urgency_flags: string[]; severity: string | null; confidence: string; priority_score: number | null; status: string }
-interface DamageRow { id: number; center_id: number; lat: number; lng: number; reason: string | null; edge_geometry: any; reported_at: string }
+interface SiteRow {
+  id: number;
+  center_id: number;
+  report_id?: number | null;
+  location_name: string;
+  lat: number;
+  lng: number;
+  estimated_population: number;
+  needs: string[];
+  urgency_flags: string[];
+  severity: string | null;
+  confidence: string;
+  priority_score: number | null;
+  status: string;
+}
+interface DamageRow {
+  id: number;
+  center_id: number;
+  lat: number;
+  lng: number;
+  reason: string | null;
+  edge_geometry: any;
+  reported_at: string;
+}
 
-export function AdminMapPage({ centers }: { centers: Center[] }) {
+export function AdminMapPage({
+  centers,
+  key2,
+}: {
+  centers: Center[];
+  key2: number;
+}) {
   const mapRef = useRef<LeafletMapHandle>(null);
-  const [province, setProvince] = useState<string>('All Pakistan');
+  const [province, setProvince] = useState<string>("All Pakistan");
   const [sites, setSites] = useState<SiteRow[]>([]);
   const [damaged, setDamaged] = useState<DamageRow[]>([]);
-  const [depotsByCenter, setDepotsByCenter] = useState<Record<number, Depot[]>>({});
+  const [depotsByCenter, setDepotsByCenter] = useState<Record<number, Depot[]>>(
+    {},
+  );
   const [err, setErr] = useState<string | null>(null);
-  const [layers, setLayers] = useState(
-    { sites: true, depots: true, damage: true, flood: true, centers: true });
+  const [layers, setLayers] = useState({
+    sites: true,
+    depots: true,
+    damage: true,
+    flood: true,
+    centers: true,
+  });
 
   useEffect(() => {
     (async () => {
       try {
         const [s, d] = await Promise.all([
-          api<SiteRow[]>('/sites'),
-          api<DamageRow[]>('/roads/damaged'),
+          api<SiteRow[]>("/sites"),
+          api<DamageRow[]>("/roads/damaged"),
         ]);
-        setSites(s); setDamaged(d);
+        setSites(s);
+        setDamaged(d);
         const results = await Promise.all(
-          centers.map(c => api<Depot[]>(`/depots?center_id=${c.id}`)));
-        setDepotsByCenter(Object.fromEntries(centers.map((c, i) => [c.id, results[i]])));
-      } catch (e: any) { setErr(e.message); }
+          centers.map((c) => api<Depot[]>(`/depots?center_id=${c.id}`)),
+        );
+        setDepotsByCenter(
+          Object.fromEntries(centers.map((c, i) => [c.id, results[i]])),
+        );
+      } catch (e: any) {
+        setErr(e.message);
+      }
     })();
   }, [centers, key2]);
 
-  const selectedCenter = province === 'All Pakistan'
-    ? null : centers.find(c => c.region === province || c.name.includes(province));
+  const selectedCenter =
+    province === "All Pakistan"
+      ? null
+      : centers.find((c) => c.region === province || c.name.includes(province));
 
   const allDepots = Object.entries(depotsByCenter).flatMap(([cid, ds]) =>
-    ds.map(d => ({ ...d, center_id: Number(cid) })));
+    ds.map((d) => ({ ...d, center_id: Number(cid) })),
+  );
 
   const inScope = <T extends { center_id: number }>(rows: T[]) =>
-    selectedCenter ? rows.filter(r => r.center_id === selectedCenter.id) : rows;
+    selectedCenter
+      ? rows.filter((r) => r.center_id === selectedCenter.id)
+      : rows;
 
   const vDepots = inScope(allDepots);
-  const vSites = inScope(sites).filter(s => s.lat !== 0 || s.lng !== 0);
+  const vSites = inScope(sites).filter((s) => s.lat !== 0 || s.lng !== 0);
   const vDamaged = inScope(damaged);
   const vCenters = selectedCenter ? [selectedCenter] : centers;
 
   const markers: LeafMarker[] = [
-    ...(layers.centers ? vCenters.map(cn => ({
-      id: `c${cn.id}`, lat: cn.lat, lng: cn.lng,
-      title: cn.name, snippet: `Support Center · ${cn.code}`,
-      color: C.secondary, label: 'C',
-    })) : []),
-    ...(layers.depots ? vDepots.map(d => ({
-      id: `d${d.id}`, lat: d.lat, lng: d.lng, title: d.name, snippet: 'Depot',
-      color: '#1565C0', label: 'D',
-    })) : []),
-    ...(layers.sites ? vSites.map(s => ({
-      id: `s${s.id}`, lat: s.lat, lng: s.lng,
-      title: s.location_name,
-      snippet: `~${s.estimated_population} people · ${s.status}`,
-      color: '#E65100', label: 'R',
-    })) : []),
-    ...(layers.damage ? vDamaged.map(dg => ({
-      id: `dg${dg.id}`, lat: dg.lat, lng: dg.lng,
-      title: '⚠️ Road Blocked', snippet: dg.reason || 'Damage reported',
-      color: C.critical, label: '!',
-    })) : []),
+    ...(layers.centers
+      ? vCenters.map((cn) => ({
+          id: `c${cn.id}`,
+          lat: cn.lat,
+          lng: cn.lng,
+          title: cn.name,
+          snippet: `Support Center · ${cn.code}`,
+          color: C.secondary,
+          label: "C",
+        }))
+      : []),
+    ...(layers.depots
+      ? vDepots.map((d) => ({
+          id: `d${d.id}`,
+          lat: d.lat,
+          lng: d.lng,
+          title: d.name,
+          snippet: "Depot",
+          color: "#1565C0",
+          label: "D",
+        }))
+      : []),
+    ...(layers.sites
+      ? vSites.map((s) => ({
+          id: `s${s.id}`,
+          lat: s.lat,
+          lng: s.lng,
+          title: s.location_name,
+          snippet: `~${s.estimated_population} people · ${s.status}`,
+          color: "#E65100",
+          label: "R",
+        }))
+      : []),
+    ...(layers.damage
+      ? vDamaged.map((dg) => ({
+          id: `dg${dg.id}`,
+          lat: dg.lat,
+          lng: dg.lng,
+          title: "⚠️ Road Blocked",
+          snippet: dg.reason || "Damage reported",
+          color: C.critical,
+          label: "!",
+        }))
+      : []),
   ];
 
   const floodPolygons: LeafPolygon[] = [];
 
-  const floodCircles: LeafCircle[] = layers.flood && vSites.length > 0
-    ? vSites.map(s => ({
-        id: `flood_${s.id}`,
-        lat: s.lat,
-        lng: s.lng,
-        radiusMeters: 5000, // 5 km radius around each flood site
-        color: C.primary,
-        fillOpacity: 0.15,
-      }))
-    : [];
+  const floodCircles: LeafCircle[] =
+    layers.flood && vSites.length > 0
+      ? vSites.map((s) => ({
+          id: `flood_${s.id}`,
+          lat: s.lat,
+          lng: s.lng,
+          radiusMeters: 5000, // 5 km radius around each flood site
+          color: C.primary,
+          fillOpacity: 0.15,
+        }))
+      : [];
 
-  const affectedPeople = vSites.reduce((sum, s) => sum + (s.estimated_population || 0), 0);
-  const criticalCount = vSites.filter(s => s.severity === 'critical' || s.severity === 'high').length;
+  const affectedPeople = vSites.reduce(
+    (sum, s) => sum + (s.estimated_population || 0),
+    0,
+  );
+  const criticalCount = vSites.filter(
+    (s) => s.severity === "critical" || s.severity === "high",
+  ).length;
 
-  const provinces = ['All Pakistan', ...Array.from(new Set(centers.map(c => c.region ?? c.name)))];
+  const provinces = [
+    "All Pakistan",
+    ...Array.from(new Set(centers.map((c) => c.region ?? c.name))),
+  ];
 
   return (
     <View style={{ flex: 1 }}>
       {/* Map fills all available space — OUTSIDE any ScrollView so pinch/pan work */}
-      <View style={{ flex: 1, position: 'relative', minHeight: 200 }}>
+      <View style={{ flex: 1, position: "relative", minHeight: 200 }}>
         <LeafletMap
           ref={mapRef}
           markers={markers}
           polygons={floodPolygons}
           circles={floodCircles}
           fit={markers.length > 0 || floodCircles.length > 0}
-          center={selectedCenter
-            ? { lat: selectedCenter.lat, lng: selectedCenter.lng }
-            : { lat: 30.3769, lng: 69.3451 }}
+          center={
+            selectedCenter
+              ? {
+                  lat: selectedCenter.lat,
+                  lng: selectedCenter.lng,
+                }
+              : { lat: 30.3769, lng: 69.3451 }
+          }
           zoom={selectedCenter ? 6 : 5}
         />
       </View>
@@ -120,40 +229,116 @@ export function AdminMapPage({ centers }: { centers: Center[] }) {
 
         <Card>
           <Text style={[T.titleLg, { color: C.onSurface }]}>Map Layers</Text>
-          <View style={{ flexDirection: 'row', flexWrap: 'wrap', marginTop: 10 }}>
-            <Chip label="Relief Sites" selected={layers.sites} color='#E65100' onPress={() => { setLayers(l => ({ ...l, sites: !l.sites })); mapRef.current?.fitAll(); }} />
-            <Chip label="Depots" selected={layers.depots} color='#1565C0' onPress={() => { setLayers(l => ({ ...l, depots: !l.depots })); mapRef.current?.fitAll(); }} />
-            <Chip label="Road Damage" selected={layers.damage} color={C.critical} onPress={() => { setLayers(l => ({ ...l, damage: !l.damage })); mapRef.current?.fitAll(); }} />
-            <Chip label="Flood Zone" selected={layers.flood} color={C.primary} onPress={() => { setLayers(l => ({ ...l, flood: !l.flood })); mapRef.current?.fitAll(); }} />
-            <Chip label="Centers" selected={layers.centers} color={C.secondary} onPress={() => { setLayers(l => ({ ...l, centers: !l.centers })); mapRef.current?.fitAll(); }} />
+          <View
+            style={{
+              flexDirection: "row",
+              flexWrap: "wrap",
+              marginTop: 10,
+            }}
+          >
+            <Chip
+              label="Relief Sites"
+              selected={layers.sites}
+              color="#E65100"
+              onPress={() => {
+                setLayers((l) => ({ ...l, sites: !l.sites }));
+                mapRef.current?.fitAll();
+              }}
+            />
+            <Chip
+              label="Depots"
+              selected={layers.depots}
+              color="#1565C0"
+              onPress={() => {
+                setLayers((l) => ({ ...l, depots: !l.depots }));
+                mapRef.current?.fitAll();
+              }}
+            />
+            <Chip
+              label="Road Damage"
+              selected={layers.damage}
+              color={C.critical}
+              onPress={() => {
+                setLayers((l) => ({ ...l, damage: !l.damage }));
+                mapRef.current?.fitAll();
+              }}
+            />
+            <Chip
+              label="Flood Zone"
+              selected={layers.flood}
+              color={C.primary}
+              onPress={() => {
+                setLayers((l) => ({ ...l, flood: !l.flood }));
+                mapRef.current?.fitAll();
+              }}
+            />
+            <Chip
+              label="Centers"
+              selected={layers.centers}
+              color={C.secondary}
+              onPress={() => {
+                setLayers((l) => ({
+                  ...l,
+                  centers: !l.centers,
+                }));
+                mapRef.current?.fitAll();
+              }}
+            />
           </View>
         </Card>
 
         {/* Flood impact summary — shown below layers when Flood Zone is active */}
         {layers.flood && vSites.length > 0 && (
           <Card barColor={C.primary}>
-            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
-              <Text style={[T.titleLg, { color: C.onSurface }]}>🌊 Flood Impact Zone</Text>
+            <View
+              style={{
+                flexDirection: "row",
+                alignItems: "center",
+                justifyContent: "space-between",
+              }}
+            >
+              <Text style={[T.titleLg, { color: C.onSurface }]}>
+                🌊 Flood Impact Zone
+              </Text>
               <StatusChip label={`${vSites.length} sites`} tone="info" />
             </View>
-            <Text style={[T.bodyMd, { color: C.onSurfaceVariant, marginTop: 4 }]}>
+            <Text
+              style={[T.bodyMd, { color: C.onSurfaceVariant, marginTop: 4 }]}
+            >
               ~{affectedPeople.toLocaleString()} people
-              {criticalCount > 0 ? ` · ${criticalCount} high/critical` : ''}
+              {criticalCount > 0 ? ` · ${criticalCount} high/critical` : ""}
             </Text>
-            <Text style={[T.labelSm, { color: C.onSurfaceVariant, marginTop: 4 }]}>
-              The blue circle covers every reported site — its spread shows the flood's
-              direction; unreported settlements on the fringe are the ones to watch next.
+            <Text
+              style={[T.labelSm, { color: C.onSurfaceVariant, marginTop: 4 }]}
+            >
+              The blue circle covers every reported site — its spread shows the
+              flood's direction; unreported settlements on the fringe are the
+              ones to watch next.
             </Text>
           </Card>
         )}
 
         <Card>
-          <Text style={[T.titleLg, { color: C.onSurface }]}>Filter by Province</Text>
-          <View style={{ flexDirection: 'row', flexWrap: 'wrap', marginTop: 10 }}>
-            {provinces.map(pr => (
-              <Chip key={pr} label={pr === 'Islamabad Capital Territory' ? 'Federal (ISB)' : pr}
-                    selected={province === pr} color={C.secondary}
-                    onPress={() => setProvince(pr)} />
+          <Text style={[T.titleLg, { color: C.onSurface }]}>
+            Filter by Province
+          </Text>
+          <View
+            style={{
+              flexDirection: "row",
+              flexWrap: "wrap",
+              marginTop: 10,
+            }}
+          >
+            {provinces.map((pr) => (
+              <Chip
+                key={pr}
+                label={
+                  pr === "Islamabad Capital Territory" ? "Federal (ISB)" : pr
+                }
+                selected={province === pr}
+                color={C.secondary}
+                onPress={() => setProvince(pr)}
+              />
             ))}
           </View>
         </Card>
@@ -161,11 +346,15 @@ export function AdminMapPage({ centers }: { centers: Center[] }) {
         <Card barColor={C.primary}>
           <Text style={[T.titleLg, { color: C.onSurface }]}>{province}</Text>
           <Text style={[T.bodyMd, { color: C.onSurfaceVariant, marginTop: 6 }]}>
-            {vCenters.length} support center{vCenters.length !== 1 ? 's' : ''} ·
-            {' '}{vDepots.length} depot{vDepots.length !== 1 ? 's' : ''} ·
-            {' '}{vSites.length} flood-affected site{vSites.length !== 1 ? 's' : ''}
-            {vSites.length > 0 ? ` (~${affectedPeople.toLocaleString()} people)` : ''} ·
-            {' '}{vDamaged.length} road damage report{vDamaged.length !== 1 ? 's' : ''}
+            {vCenters.length} support center
+            {vCenters.length !== 1 ? "s" : ""} · {vDepots.length} depot
+            {vDepots.length !== 1 ? "s" : ""} · {vSites.length} flood-affected
+            site{vSites.length !== 1 ? "s" : ""}
+            {vSites.length > 0
+              ? ` (~${affectedPeople.toLocaleString()} people)`
+              : ""}{" "}
+            · {vDamaged.length} road damage report
+            {vDamaged.length !== 1 ? "s" : ""}
           </Text>
         </Card>
       </KeyboardAwareScrollView>
@@ -173,5 +362,4 @@ export function AdminMapPage({ centers }: { centers: Center[] }) {
   );
 }
 
-import { cs } from './adminStyles';
-
+import { cs } from "./adminStyles";

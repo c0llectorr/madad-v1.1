@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from "react";
 import {
   Animated,
   Pressable,
@@ -6,25 +6,25 @@ import {
   Text,
   TextInput,
   View,
-} from 'react-native';
-import { KeyboardAwareScrollView } from 'react-native-keyboard-aware-scroll-view';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { api, setToken, LoginResponse } from '../api';
-import { C, RADIUS, T } from '../theme';
+} from "react-native";
+import { KeyboardAwareScrollView } from "react-native-keyboard-aware-scroll-view";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { api, setToken, LoginResponse } from "../api";
+import { C, RADIUS, T } from "../theme";
 
 /* ─── validation ──────────────────────────────────────────────────────────── */
 
 function validateUsername(v: string): string | null {
   const trimmed = v.trim();
-  if (!trimmed) return 'Username is required';
-  if (trimmed.length < 3) return 'Must be at least 3 characters';
-  if (trimmed.length > 60) return 'Too long (max 60 characters)';
+  if (!trimmed) return "Username is required";
+  if (trimmed.length < 3) return "Must be at least 3 characters";
+  if (trimmed.length > 60) return "Too long (max 60 characters)";
   return null;
 }
 
 function validatePassword(v: string): string | null {
-  if (!v) return 'Password is required';
-  if (v.length < 4) return 'Must be at least 4 characters';
+  if (!v) return "Password is required";
+  if (v.length < 4) return "Must be at least 4 characters";
   return null;
 }
 
@@ -34,22 +34,27 @@ function validatePassword(v: string): string | null {
  */
 function mapApiError(raw: string): string {
   const l = raw.toLowerCase();
-  if (l.includes('incorrect username or password')) {
-    return 'Incorrect username or password. Please try again.';
+  if (l.includes("incorrect username or password")) {
+    return "Incorrect username or password. Please try again.";
   }
-  if (l.includes('deactivated')) {
-    return 'This account has been deactivated. Contact your administrator.';
+  if (l.includes("deactivated")) {
+    return "This account has been deactivated. Contact your administrator.";
   }
-  if (l.includes('request timed out') || l.includes('login timed out')) {
-    return 'The server didn\'t respond in time. Please check your connection and try again.';
+  if (l.includes("request timed out") || l.includes("login timed out")) {
+    return "The server didn't respond in time. Please check your connection and try again.";
   }
   if (
-    l.includes('network request failed') ||
-    l.includes('failed to fetch') ||
-    l.includes('econnrefused') ||
-    l.includes('timeout')
+    l.includes("cannot reach the server") ||
+    l.includes("network request failed") ||
+    l.includes("failed to fetch") ||
+    l.includes("econnrefused") ||
+    l.includes("unexpected end of stream") ||
+    l.includes("java.ioexception") ||
+    l.includes("connection reset") ||
+    l.includes("socket hang up") ||
+    l.includes("timeout")
   ) {
-    return 'Cannot reach the server. Check your connection and try again.';
+    return "Cannot reach the server. Check your connection and try again.";
   }
   return raw; // surface unexpected errors as-is
 }
@@ -58,20 +63,32 @@ function mapApiError(raw: string): string {
 
 function FieldError({ msg }: { msg: string | null }) {
   if (!msg) return null;
-  return <Text style={s.fieldError}>{'⚠  '}{msg}</Text>;
+  return (
+    <Text style={s.fieldError}>
+      {"⚠  "}
+      {msg}
+    </Text>
+  );
 }
 
 /* ─── login screen ───────────────────────────────────────────────────────── */
 
-export default function LoginScreen({ onLogin }: { onLogin: (r: LoginResponse) => void }) {
+export default function LoginScreen({
+  onLogin,
+}: {
+  onLogin: (r: LoginResponse) => void;
+}) {
   const insets = useSafeAreaInsets();
 
-  const [username, setUsername] = useState('');
-  const [password, setPassword] = useState('');
+  const [username, setUsername] = useState("");
+  const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
 
   // per-field errors (shown after first submit attempt)
-  const [touched, setTouched] = useState({ username: false, password: false });
+  const [touched, setTouched] = useState({
+    username: false,
+    password: false,
+  });
   const [apiError, setApiError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   // counts down from LOGIN_TIMEOUT_SECS to 0 while a request is in-flight
@@ -87,7 +104,8 @@ export default function LoginScreen({ onLogin }: { onLogin: (r: LoginResponse) =
   /* ── derived validation ─────────────────────────────────────── */
   const usernameErr = touched.username ? validateUsername(username) : null;
   const passwordErr = touched.password ? validatePassword(password) : null;
-  const canSubmit = !busy && !validateUsername(username) && !validatePassword(password);
+  const canSubmit =
+    !busy && !validateUsername(username) && !validatePassword(password);
 
   /* ── clean up countdown timer on unmount ────────────────────── */
   useEffect(() => {
@@ -101,11 +119,31 @@ export default function LoginScreen({ onLogin }: { onLogin: (r: LoginResponse) =
   const shake = () => {
     shakeAnim.setValue(0);
     Animated.sequence([
-      Animated.timing(shakeAnim, { toValue: 10,  duration: 60, useNativeDriver: true }),
-      Animated.timing(shakeAnim, { toValue: -10, duration: 60, useNativeDriver: true }),
-      Animated.timing(shakeAnim, { toValue: 8,   duration: 50, useNativeDriver: true }),
-      Animated.timing(shakeAnim, { toValue: -8,  duration: 50, useNativeDriver: true }),
-      Animated.timing(shakeAnim, { toValue: 0,   duration: 40, useNativeDriver: true }),
+      Animated.timing(shakeAnim, {
+        toValue: 10,
+        duration: 60,
+        useNativeDriver: true,
+      }),
+      Animated.timing(shakeAnim, {
+        toValue: -10,
+        duration: 60,
+        useNativeDriver: true,
+      }),
+      Animated.timing(shakeAnim, {
+        toValue: 8,
+        duration: 50,
+        useNativeDriver: true,
+      }),
+      Animated.timing(shakeAnim, {
+        toValue: -8,
+        duration: 50,
+        useNativeDriver: true,
+      }),
+      Animated.timing(shakeAnim, {
+        toValue: 0,
+        duration: 40,
+        useNativeDriver: true,
+      }),
     ]).start();
   };
 
@@ -119,7 +157,8 @@ export default function LoginScreen({ onLogin }: { onLogin: (r: LoginResponse) =
 
     // Mark both fields touched so errors appear
     setTouched({ username: true, password: true });
-    if (validateUsername(trimmedUsername) || validatePassword(trimmedPassword)) return;
+    if (validateUsername(trimmedUsername) || validatePassword(trimmedPassword))
+      return;
 
     setBusy(true);
     setApiError(null);
@@ -131,7 +170,7 @@ export default function LoginScreen({ onLogin }: { onLogin: (r: LoginResponse) =
     // Start visible countdown
     setCountdown(LOGIN_TIMEOUT_SECS);
     countdownRef.current = setInterval(() => {
-      setCountdown(prev => {
+      setCountdown((prev) => {
         if (prev === null || prev <= 1) {
           clearInterval(countdownRef.current!);
           countdownRef.current = null;
@@ -142,11 +181,14 @@ export default function LoginScreen({ onLogin }: { onLogin: (r: LoginResponse) =
     }, 1000);
 
     // Hard-abort after 60 s
-    const timeoutId = setTimeout(() => controller.abort(), LOGIN_TIMEOUT_SECS * 1000);
+    const timeoutId = setTimeout(
+      () => controller.abort(),
+      LOGIN_TIMEOUT_SECS * 1000,
+    );
 
     try {
-      const res = await api<LoginResponse>('/auth/login', {
-        method: 'POST',
+      const res = await api<LoginResponse>("/auth/login", {
+        method: "POST",
         body: { username: trimmedUsername, password: trimmedPassword },
         signal: controller.signal,
       });
@@ -155,8 +197,8 @@ export default function LoginScreen({ onLogin }: { onLogin: (r: LoginResponse) =
       onLogin(res);
     } catch (e: any) {
       clearTimeout(timeoutId);
-      const isAbort = e?.name === 'AbortError' || controller.signal.aborted;
-      const raw = isAbort ? 'Login timed out' : (e.message ?? 'Unknown error');
+      const isAbort = e?.name === "AbortError" || controller.signal.aborted;
+      const raw = isAbort ? "Login timed out" : (e.message ?? "Unknown error");
       const msg = mapApiError(raw);
       setApiError(msg);
       shake();
@@ -181,24 +223,27 @@ export default function LoginScreen({ onLogin }: { onLogin: (r: LoginResponse) =
       enableOnAndroid
       extraScrollHeight={24}
     >
-        {/* ── brand band ──────────────────────────────────────── */}
-        <View style={s.brandBand}>
-          <View style={s.logoCircle}>
-            <Text style={{ color: C.onPrimary, fontSize: 28 }}>🛡</Text>
-          </View>
-          <Text style={[T.headlineLg, { color: C.primary, marginTop: 14 }]}>MADAD</Text>
-          <Text style={[T.bodyMd, s.subtitle]}>
-            Sign in to access your Support Center dashboard.
-          </Text>
+      {/* ── brand band ──────────────────────────────────────── */}
+      <View style={s.brandBand}>
+        <View style={s.logoCircle}>
+          <Text style={{ color: C.onPrimary, fontSize: 28 }}>🛡</Text>
         </View>
+        <Text style={[T.headlineLg, { color: C.primary, marginTop: 14 }]}>
+          MADAD
+        </Text>
+        <Text style={[T.bodyMd, s.subtitle]}>
+          Sign in to access your Support Center dashboard.
+        </Text>
+      </View>
 
-        {/* ── form card ───────────────────────────────────────── */}
-        <Animated.View style={[s.card, { transform: [{ translateX: shakeAnim }] }]}>
-          {/* importantForAutofill="yes" groups both fields so Android Autofill
+      {/* ── form card ───────────────────────────────────────── */}
+      <Animated.View
+        style={[s.card, { transform: [{ translateX: shakeAnim }] }]}
+      >
+        {/* importantForAutofill="yes" groups both fields so Android Autofill
               Framework treats them as a single credential form and offers to
               save / fill after a successful login. */}
-          <View>
-
+        <View>
           {/* username */}
           <View style={s.fieldWrap}>
             <Text style={s.label}>Username</Text>
@@ -207,12 +252,15 @@ export default function LoginScreen({ onLogin }: { onLogin: (r: LoginResponse) =
               <TextInput
                 style={s.input}
                 value={username}
-                onChangeText={t => {
+                onChangeText={(t) => {
                   setUsername(t);
                   setApiError(null);
                 }}
                 onBlur={() => {
-                  setTouched(p => ({ ...p, username: true }));
+                  setTouched((p) => ({
+                    ...p,
+                    username: true,
+                  }));
                 }}
                 placeholder="Coordinator ID or username"
                 placeholderTextColor={C.outline}
@@ -239,12 +287,15 @@ export default function LoginScreen({ onLogin }: { onLogin: (r: LoginResponse) =
                 ref={passwordRef}
                 style={[s.input, { flex: 1 }]}
                 value={password}
-                onChangeText={t => {
+                onChangeText={(t) => {
                   setPassword(t);
                   setApiError(null);
                 }}
                 onBlur={() => {
-                  setTouched(p => ({ ...p, password: true }));
+                  setTouched((p) => ({
+                    ...p,
+                    password: true,
+                  }));
                 }}
                 placeholder="Enter your password"
                 placeholderTextColor={C.outline}
@@ -260,12 +311,14 @@ export default function LoginScreen({ onLogin }: { onLogin: (r: LoginResponse) =
               />
               {/* show / hide toggle */}
               <Pressable
-                onPress={() => setShowPassword(v => !v)}
+                onPress={() => setShowPassword((v) => !v)}
                 hitSlop={10}
                 style={s.eyeBtn}
-                accessibilityLabel={showPassword ? 'Hide password' : 'Show password'}
+                accessibilityLabel={
+                  showPassword ? "Hide password" : "Show password"
+                }
               >
-                <Text style={s.eyeIcon}>{showPassword ? '🙈' : '👁'}</Text>
+                <Text style={s.eyeIcon}>{showPassword ? "🙈" : "👁"}</Text>
               </Pressable>
             </View>
             <FieldError msg={passwordErr} />
@@ -290,9 +343,7 @@ export default function LoginScreen({ onLogin }: { onLogin: (r: LoginResponse) =
             accessibilityRole="button"
             accessibilityLabel="Sign In"
           >
-            <Text style={s.submitText}>
-              {busy ? 'Signing in…' : 'Sign In'}
-            </Text>
+            <Text style={s.submitText}>{busy ? "Signing in…" : "Sign In"}</Text>
             {!busy && <Text style={s.submitArrow}> →</Text>}
           </Pressable>
 
@@ -303,15 +354,16 @@ export default function LoginScreen({ onLogin }: { onLogin: (r: LoginResponse) =
                 ? `Waiting for server… (${countdown}s)`
                 : countdown > 0
                   ? `Still waiting… timing out in ${countdown}s`
-                  : 'Request timed out.'}
+                  : "Request timed out."}
             </Text>
           ) : null}
 
           <Text style={s.hint}>
             Having trouble? Contact your MADAD administrator.
           </Text>
-          </View>{/* end importantForAutofill group */}
-        </Animated.View>
+        </View>
+        {/* end importantForAutofill group */}
+      </Animated.View>
     </KeyboardAwareScrollView>
   );
 }
@@ -322,27 +374,32 @@ const s = StyleSheet.create({
   scroll: {
     flexGrow: 1,
     backgroundColor: C.background,
-    justifyContent: 'center',
+    justifyContent: "center",
     padding: 20,
   },
 
   /* brand */
   brandBand: {
-    alignItems: 'center',
+    alignItems: "center",
     paddingVertical: 36,
     paddingHorizontal: 16,
   },
   logoCircle: {
-    width: 72, height: 72, borderRadius: 36,
+    width: 72,
+    height: 72,
+    borderRadius: 36,
     backgroundColor: C.primary,
-    alignItems: 'center', justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
     elevation: 4,
-    shadowColor: C.primary, shadowOpacity: 0.35, shadowRadius: 10,
+    shadowColor: C.primary,
+    shadowOpacity: 0.35,
+    shadowRadius: 10,
     shadowOffset: { width: 0, height: 4 },
   },
   subtitle: {
     color: C.onSurfaceVariant,
-    textAlign: 'center',
+    textAlign: "center",
     marginTop: 10,
     paddingHorizontal: 24,
   },
@@ -354,7 +411,7 @@ const s = StyleSheet.create({
     padding: 24,
     elevation: 2,
     shadowColor: C.secondary,
-    shadowOpacity: 0.10,
+    shadowOpacity: 0.1,
     shadowRadius: 10,
     shadowOffset: { width: 0, height: 3 },
   },
@@ -367,8 +424,8 @@ const s = StyleSheet.create({
     marginBottom: 6,
   },
   inputRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     backgroundColor: C.surfaceLow,
     borderWidth: 1,
     borderColor: C.outlineVariant,
@@ -378,7 +435,7 @@ const s = StyleSheet.create({
   },
   inputRowError: {
     borderColor: C.error,
-    backgroundColor: '#FFF8F8',
+    backgroundColor: "#FFF8F8",
   },
   inputIcon: { fontSize: 16, marginRight: 10, color: C.onSurfaceVariant },
   input: {
@@ -407,8 +464,8 @@ const s = StyleSheet.create({
     borderRadius: RADIUS.md,
     padding: 12,
     marginBottom: 16,
-    flexDirection: 'row',
-    alignItems: 'flex-start',
+    flexDirection: "row",
+    alignItems: "flex-start",
   },
   apiBannerText: {
     ...T.labelLg,
@@ -421,9 +478,9 @@ const s = StyleSheet.create({
     backgroundColor: C.primary,
     borderRadius: RADIUS.md,
     minHeight: 52,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
     marginTop: 4,
     marginBottom: 16,
     elevation: 1,
@@ -432,7 +489,7 @@ const s = StyleSheet.create({
   submitBtnPressed: { opacity: 0.85 },
   submitText: {
     color: C.onPrimary,
-    fontWeight: '600',
+    fontWeight: "600",
     fontSize: 16,
   },
   submitArrow: {
@@ -443,13 +500,13 @@ const s = StyleSheet.create({
   hint: {
     ...T.labelSm,
     color: C.onSurfaceVariant,
-    textAlign: 'center',
+    textAlign: "center",
   },
 
   countdown: {
     ...T.labelSm,
     color: C.onSurfaceVariant,
-    textAlign: 'center',
+    textAlign: "center",
     marginBottom: 12,
   },
 });

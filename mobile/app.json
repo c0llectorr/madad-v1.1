@@ -1,31 +1,31 @@
 {
-	"expo": {
-		"name": "MADAD",
-		"slug": "madad",
-		"version": "1.2.0",
-		"description": "Relief coordination for support centers",
-		"orientation": "portrait",
-		"icon": "./assets/icon.png",
-		"scheme": "madad",
-		"userInterfaceStyle": "light",
-		"ios": {
-			"supportsTablet": true
-		},
-		"android": {
-			"adaptiveIcon": {
-				"backgroundColor": "#E6F4FE",
-				"foregroundImage": "./assets/android-icon-foreground.png",
-				"backgroundImage": "./assets/android-icon-background.png",
-				"monochromeImage": "./assets/android-icon-monochrome.png"
-			},
-			"predictiveBackGestureEnabled": true
-		},
-		"web": {
-			"favicon": "./assets/favicon.png"
-		},
-		"experiments": {
-			"typedRoutes": false,
-			"reactCompiler": true
-		}
-	}
+  "expo": {
+    "name": "MADAD",
+    "slug": "madad",
+    "version": "1.2.0",
+    "description": "Relief coordination for support centers",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "scheme": "madad",
+    "userInterfaceStyle": "light",
+    "ios": {
+      "supportsTablet": true
+    },
+    "android": {
+      "adaptiveIcon": {
+        "backgroundColor": "#E6F4FE",
+        "foregroundImage": "./assets/android-icon-foreground.png",
+        "backgroundImage": "./assets/android-icon-background.png",
+        "monochromeImage": "./assets/android-icon-monochrome.png"
+      },
+      "predictiveBackGestureEnabled": true
+    },
+    "web": {
+      "favicon": "./assets/favicon.png"
+    },
+    "experiments": {
+      "typedRoutes": false,
+      "reactCompiler": true
+    }
+  }
 }

@@ -1,6 +1,11 @@
-import React, { useCallback, useImperativeHandle, useMemo, useRef } from 'react';
-import { StyleSheet, View } from 'react-native';
-import { WebView, WebViewNavigation } from 'react-native-webview';
+import React, {
+  useCallback,
+  useImperativeHandle,
+  useMemo,
+  useRef,
+} from "react";
+import { StyleSheet, View } from "react-native";
+import { WebView, WebViewNavigation } from "react-native-webview";
 
 export interface LeafMarker {
   id: string;
@@ -8,9 +13,9 @@ export interface LeafMarker {
   lng: number;
   title: string;
   snippet?: string;
-  color?: string;   // pin color, CSS
-  icon?: 'pin' | 'dot' | 'circle';
-  label?: string;   // single character shown inside the pin
+  color?: string; // pin color, CSS
+  icon?: "pin" | "dot" | "circle";
+  label?: string; // single character shown inside the pin
 }
 
 export interface LeafPolygon {
@@ -252,35 +257,52 @@ const HTML = `<!DOCTYPE html>
 </body>
 </html>`;
 
-const LeafletMap = React.forwardRef<LeafletMapHandle, {
-  height?: number;
-  markers?: LeafMarker[];
-  polylines?: LeafPolyline[];
-  polygons?: LeafPolygon[];
-  circles?: LeafCircle[];
-  onMapPress?: (lat: number, lng: number) => void;
-  center?: { lat: number; lng: number };
-  zoom?: number;
-  fit?: boolean;
-}>(function LeafletMap({
-  height, markers = [], polylines = [], polygons = [], circles = [], onMapPress,
-  center = { lat: 29.85, lng: 70.45 }, zoom = 9, fit = false,
-}, ref) {
+const LeafletMap = React.forwardRef<
+  LeafletMapHandle,
+  {
+    height?: number;
+    markers?: LeafMarker[];
+    polylines?: LeafPolyline[];
+    polygons?: LeafPolygon[];
+    circles?: LeafCircle[];
+    onMapPress?: (lat: number, lng: number) => void;
+    center?: { lat: number; lng: number };
+    zoom?: number;
+    fit?: boolean;
+  }
+>(function LeafletMap(
+  {
+    height,
+    markers = [],
+    polylines = [],
+    polygons = [],
+    circles = [],
+    onMapPress,
+    center = { lat: 29.85, lng: 70.45 },
+    zoom = 9,
+    fit = false,
+  },
+  ref,
+) {
   const webRef = useRef<WebView>(null);
 
   const html = useMemo(
-    () => HTML.replace('__LAT__', String(center.lat))
-              .replace('__LNG__', String(center.lng))
-              .replace('__ZOOM__', String(zoom)),
+    () =>
+      HTML.replace("__LAT__", String(center.lat))
+        .replace("__LNG__", String(center.lng))
+        .replace("__ZOOM__", String(zoom)),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    []);   // HTML is fixed at mount — center/zoom are only the initial view
+    [],
+  ); // HTML is fixed at mount — center/zoom are only the initial view
 
-    // JSON.stringify does not escape "</script>" — escape "<" so user-supplied
+  // JSON.stringify does not escape "</script>" — escape "<" so user-supplied
   // titles/reasons can never break out of the inline <script> block.
-  const safeJson = (v: unknown) => JSON.stringify(v).replace(/</g, '\\u003c');
+  const safeJson = (v: unknown) => JSON.stringify(v).replace(/</g, "\\u003c");
   const payload = useMemo(
-    () => `window.__render && window.__render(${JSON.stringify({ markers, polylines, polygons, circles, fit })}); true;`,
-    [markers, polylines, polygons, circles, fit]);
+    () =>
+      `window.__render && window.__render(${JSON.stringify({ markers, polylines, polygons, circles, fit })}); true;`,
+    [markers, polylines, polygons, circles, fit],
+  );
 
   // Track readiness so a center prop set before the map engine loads is
   // applied as soon as (re)inject runs — e.g. a prefilled geocoded location.
@@ -295,7 +317,7 @@ const LeafletMap = React.forwardRef<LeafletMapHandle, {
     // happen on every data change and must not yank the view back.
     webRef.current?.injectJavaScript(
       `window.__invalidate && window.__invalidate(); ` +
-      `window.__render && window.__render(${JSON.stringify({ markers, polylines, polygons, circles, fit })}); true;`
+        `window.__render && window.__render(${JSON.stringify({ markers, polylines, polygons, circles, fit })}); true;`,
     );
   }, [markers, polylines, polygons, circles, fit]);
 
@@ -303,53 +325,68 @@ const LeafletMap = React.forwardRef<LeafletMapHandle, {
   React.useEffect(() => {
     if (readyRef.current) {
       webRef.current?.injectJavaScript(
-        `window.__flyTo && window.__flyTo(${center.lat}, ${center.lng}, ${zoom}); true;`
+        `window.__flyTo && window.__flyTo(${center.lat}, ${center.lng}, ${zoom}); true;`,
       );
     }
   }, [center.lat, center.lng, zoom]);
 
-  useImperativeHandle(ref, () => ({
-    flyTo(lat, lng, z = 13) {
-      webRef.current?.injectJavaScript(
-        `window.__flyTo && window.__flyTo(${lat}, ${lng}, ${z}); true;`
-      );
-    },
-    fitAll() {
-      // Delay slightly longer than UpdateHook's 300ms debounce so the latest
-      // markers/circles are already injected before we call fitBounds.
-      setTimeout(() => {
-        webRef.current?.injectJavaScript(`window.__fitAll && window.__fitAll(); true;`);
-      }, 350);
-    },
-  }), []);
-
-  const onMessage = useCallback((e: any) => {
-    try {
-      const msg = JSON.parse(e.nativeEvent.data);
-      if (msg.type === 'click' && onMapPress) onMapPress(msg.lat, msg.lng);
-      else if (msg.type === 'ready') {
-        const first = !readyRef.current;
-        readyRef.current = true;
-        inject();
-        if (first) {
-          const c = centerRef.current;
+  useImperativeHandle(
+    ref,
+    () => ({
+      flyTo(lat, lng, z = 13) {
+        webRef.current?.injectJavaScript(
+          `window.__flyTo && window.__flyTo(${lat}, ${lng}, ${z}); true;`,
+        );
+      },
+      fitAll() {
+        // Delay slightly longer than UpdateHook's 300ms debounce so the latest
+        // markers/circles are already injected before we call fitBounds.
+        setTimeout(() => {
           webRef.current?.injectJavaScript(
-            `window.__flyTo && window.__flyTo(${c.lat}, ${c.lng}, ${zoomRef.current}); true;`
+            `window.__fitAll && window.__fitAll(); true;`,
           );
-        }
-      }
-    } catch { /* ignore malformed messages */ }
-  }, [onMapPress, inject]);
+        }, 350);
+      },
+    }),
+    [],
+  );
 
-  const onNavigation = useCallback((req: WebViewNavigation) =>
-    req.url.startsWith('about:') || req.url.startsWith('https://unpkg.com') ||
-    req.url.startsWith('https://tile.openstreetmap.org'), []);
+  const onMessage = useCallback(
+    (e: any) => {
+      try {
+        const msg = JSON.parse(e.nativeEvent.data);
+        if (msg.type === "click" && onMapPress) onMapPress(msg.lat, msg.lng);
+        else if (msg.type === "ready") {
+          const first = !readyRef.current;
+          readyRef.current = true;
+          inject();
+          if (first) {
+            const c = centerRef.current;
+            webRef.current?.injectJavaScript(
+              `window.__flyTo && window.__flyTo(${c.lat}, ${c.lng}, ${zoomRef.current}); true;`,
+            );
+          }
+        }
+      } catch {
+        /* ignore malformed messages */
+      }
+    },
+    [onMapPress, inject],
+  );
+
+  const onNavigation = useCallback(
+    (req: WebViewNavigation) =>
+      req.url.startsWith("about:") ||
+      req.url.startsWith("https://unpkg.com") ||
+      req.url.startsWith("https://tile.openstreetmap.org"),
+    [],
+  );
 
   return (
     <View style={[styles.wrap, height != null ? { height } : { flex: 1 }]}>
       <WebView
         ref={webRef}
-        originWhitelist={['*']}
+        originWhitelist={["*"]}
         source={{ html }}
         javaScriptEnabled
         domStorageEnabled
@@ -370,7 +407,13 @@ export default LeafletMap;
 
 // Re-injects whenever markers/polylines change, with a small debounce
 // to let the WebView settle after navigation/layout changes.
-function UpdateHook({ payload, onReady }: { payload: string; onReady: () => void }) {
+function UpdateHook({
+  payload,
+  onReady,
+}: {
+  payload: string;
+  onReady: () => void;
+}) {
   React.useEffect(() => {
     const t = setTimeout(onReady, 300);
     return () => clearTimeout(t);
@@ -379,6 +422,6 @@ function UpdateHook({ payload, onReady }: { payload: string; onReady: () => void
 }
 
 const styles = StyleSheet.create({
-  wrap: { overflow: 'hidden', backgroundColor: '#F2F2ED' },
-  web: { flex: 1, backgroundColor: 'transparent' },
+  wrap: { overflow: "hidden", backgroundColor: "#F2F2ED" },
+  web: { flex: 1, backgroundColor: "transparent" },
 });
