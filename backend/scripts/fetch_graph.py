@@ -29,6 +29,8 @@ SEGMENTS = [
     (31.52, 31.30, 74.25, 73.90),   # Lahore SE
     # Kasur + Lahore-Kasur road corridor (south of Lahore)
     (31.35, 31.00, 74.85, 74.25),
+    # Narowal + Lahore-Narowal road corridor (northeast of Lahore)
+    (32.20, 31.70, 74.95, 74.50),
 ]
 
 ENDPOINTS = [

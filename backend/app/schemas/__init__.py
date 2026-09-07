@@ -85,6 +85,8 @@ class DamageReport(BaseModel):
     center_id: int
     lat: float
     lng: float
+    end_lat: float | None = None
+    end_lng: float | None = None
     reason: str | None = Field(default=None, max_length=200)
 
 

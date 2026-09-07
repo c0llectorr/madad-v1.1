@@ -12,9 +12,9 @@ import { FLAG_API, FLAG_LABELS, FLAG_TYPES, NEED_API, NEED_LABELS, NEED_TYPES, S
 import { convexHull, nearestDepot } from '../../utils/geo';
 import { PlaceSearch } from './components/PlaceSearch';
 
-export function MapPage({ centerId, sites, depots, damaged, centers, dispatches, currentUserId, refresh, onOpenRoute }: {
+export function MapPage({ centerId, sites, depots, damaged, centers, dispatches, currentUserId, refresh, onOpenRoute, onFlagDamage }: {
   centerId: number; sites: Site[]; depots: Depot[]; damaged: Damage[]; centers: CenterRow[];
-  dispatches: DispatchRow[]; currentUserId: number; refresh: () => void; onOpenRoute: (d: DispatchRow) => void;
+  dispatches: DispatchRow[]; currentUserId: number; refresh: () => void; onOpenRoute: (d: DispatchRow) => void; onFlagDamage: () => void;
 }) {
   const [layers, setLayers] = useState({ sites: true, depots: true, damage: true, routes: true, flood: true, centers: true });
   const [reason, setReason] = useState('');

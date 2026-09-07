@@ -19,6 +19,7 @@ import AssignDriverModal from './modals/AssignDriverModal';
 import type { PlanT } from '../../types';
 
 type Sub = null
+  | { name: 'flagDamage' }
   | { name: 'newReport'; edit?: { report_id: number; site: Site } }
   | { name: 'planEditor'; plan: PlanT }
   | { name: 'assignDriver'; plan: PlanT }
@@ -90,6 +91,10 @@ export default function CoordinatorNavigator({ session, onLogout }: { session: L
     );
   }
 
+  if (sub?.name === 'flagDamage') {
+    return <FlagDamageScreen centerId={centerId} userRole={session.role}
+                             onBack={() => { setSub(null); refresh(); }} />;
+  }
   if (sub?.name === 'newReport') {
     return <NewReportModal centerId={centerId} edit={sub.edit}
                            onBack={() => { setSub(null); refresh(); }} />;
@@ -152,7 +157,8 @@ export default function CoordinatorNavigator({ session, onLogout }: { session: L
                    centers={centers}
                    dispatches={dispatches.filter(d => d.dispatched_by === session.user_id)} refresh={refresh}
                    currentUserId={session.user_id}
-                   onOpenRoute={openRoute} />
+                   onOpenRoute={openRoute}
+                   onFlagDamage={() => setSub({ name: 'flagDamage' })} />
         )}
         {tab === 'profile' && (
           <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: 16 }}>

@@ -26,6 +26,7 @@ export default function DriverNavigator({ session, onLogout }: { session: LoginR
   const [dispatches, setDispatches] = useState<DriverDispatch[] | null>(null);
   const [err, setErr] = useState<string | null>(null);
   const [active, setActive] = useState<DriverDispatch | null>(null);
+  const [flagging, setFlagging] = useState(false);
   const [key, setKey] = useState(0);
   const [refreshing, setRefreshing] = useState(false);
   const [loaded, setLoaded] = useState<Record<string, boolean>>({});
@@ -49,6 +50,10 @@ export default function DriverNavigator({ session, onLogout }: { session: LoginR
     } catch (e: any) { setErr(e.message); }
   };
 
+  if (flagging) {
+    return <FlagDamageScreen centerId={1} userRole="driver"
+                             onBack={() => { setFlagging(false); load(); }} />;
+  }
   if (active) {
     return (
       <ActiveRouteModal
@@ -142,6 +147,12 @@ export default function DriverNavigator({ session, onLogout }: { session: LoginR
                       <Button title="Delivered" kind="tertiary" onPress={() => setStatus(d.dispatch_id, 'complete')} />
                     </View>
                   </>)}
+                  {d.status === 'en_route' && (
+                    <View style={{ marginTop: 6 }}>
+                      <Button title="Flag Road Damage" kind="critical" icon="⚠"
+                              onPress={() => setFlagging(true)} />
+                    </View>
+                  )}
                 </View>
               </Card>
             ))}
